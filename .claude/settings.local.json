@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:api.apyhub.com)",
+      "WebFetch(domain:cvparser.com)",
+      "WebFetch(domain:cvparser-api.com)",
+      "WebFetch(domain:www.cvparser.com)",
+      "Bash(node test-apis.js)",
+      "WebFetch(domain:docs.affinda.com)",
+      "Bash(node test-new-apis.js)",
+      "Bash(node src/app.js)",
+      "Bash(pkill -f \"node src/app.js\")",
+      "Bash(npm install:*)",
+      "Bash(node -c src/services/DocumentGeneratorService.js)",
+      "Bash(node -c src/controllers/CVController.js)",
+      "Bash(node -c src/views/TelegramView.js)"
+    ]
+  }
+}
