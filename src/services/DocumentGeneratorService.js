@@ -3,6 +3,69 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Bord
 import { Buffer } from 'buffer';
 
 export class DocumentGeneratorService {
+  async generateCoverLetterPDF(coverLetterText, originalFileName = 'cover_letter') {
+    return new Promise((resolve, reject) => {
+      try {
+        const chunks = [];
+        const doc = new PDFDocument({
+          margin: 50,
+          size: 'A4',
+          info: {
+            Title: originalFileName.replace(/\.[^/.]+$/, ''),
+          },
+        });
+
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+
+        const text = String(coverLetterText || '').trim();
+        const lines = text.length > 0
+          ? text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0)
+          : ['Dear Hiring Manager,', '', 'I am excited to apply for this role.', '', 'Sincerely,'];
+
+        doc.font('Helvetica').fontSize(12);
+
+        for (const line of lines) {
+          if (doc.y > 740) {
+            doc.addPage();
+          }
+          doc.text(line, {
+            width: doc.page.width - 100,
+            align: 'left',
+            lineGap: 2,
+          });
+          doc.moveDown(0.6);
+        }
+
+        doc.end();
+      } catch (error) {
+        console.error('[DocumentGenerator] Cover letter PDF generation error:', error);
+        reject(error);
+      }
+    });
+  }
+
+  async generateCoverLetterDOCX(coverLetterText) {
+    const text = String(coverLetterText || '').trim();
+    const lines = text.length > 0
+      ? text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0)
+      : ['Dear Hiring Manager,', 'I am excited to apply for this role.', 'Sincerely,'];
+
+    const paragraphs = lines.map((line) => (
+      new Paragraph({
+        children: [new TextRun({ text: line, size: 24 })],
+        spacing: { after: 140 },
+      })
+    ));
+
+    const doc = new Document({
+      sections: [{ properties: {}, children: paragraphs }],
+    });
+
+    return Packer.toBuffer(doc);
+  }
+
   /**
    * Generate a PDF from resume text with proper formatting
    */
@@ -462,10 +525,19 @@ export class DocumentGeneratorService {
   async generateDocument(resumeText, originalMimeType, originalFileName) {
     const format = this.detectFormat(originalMimeType, originalFileName);
     const baseName = originalFileName.replace(/\.[^/.]+$/, '');
-    const newFileName = `${baseName}_improved.${format}`;
+    const isCoverLetter = /cover[_\s-]?letter/i.test(baseName);
+    const newFileName = isCoverLetter
+      ? `${baseName}.${format}`
+      : `${baseName}_improved.${format}`;
 
     let buffer;
-    if (format === 'docx') {
+    if (isCoverLetter) {
+      if (format === 'docx') {
+        buffer = await this.generateCoverLetterDOCX(resumeText);
+      } else {
+        buffer = await this.generateCoverLetterPDF(resumeText, baseName);
+      }
+    } else if (format === 'docx') {
       buffer = await this.generateDOCX(resumeText, baseName);
     } else {
       buffer = await this.generatePDF(resumeText, baseName);
