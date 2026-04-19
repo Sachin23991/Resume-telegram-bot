@@ -514,14 +514,10 @@ export class CVController {
         jobDescription
       );
 
-      // Generate as document
-      const document = await documentGeneratorService.generateDocument(
-        coverLetter,
-        'text/plain', // Cover letters don't need to match resume format
-        'cover_letter.txt'
-      );
+      if (!coverLetter || !String(coverLetter).trim()) {
+        throw new Error('AI returned empty cover letter');
+      }
 
-      // Override to PDF for better formatting
       const pdfDoc = await documentGeneratorService.generateDocument(
         coverLetter,
         'application/pdf',
@@ -538,9 +534,9 @@ export class CVController {
           resumeText: session.cv.text,
         });
         const runId = result.data?.run_id || result.data?.id || 'unknown';
+        const content = this.extractCoverLetterContent(result.data);
 
-        if (result.data?.content || result.data?.text) {
-          const content = result.data.content || result.data.text;
+        if (content) {
           const pdfDoc = await documentGeneratorService.generateDocument(
             content,
             'application/pdf',
@@ -548,7 +544,25 @@ export class CVController {
           );
           await telegramView.sendDocument(ctx, pdfDoc.buffer, pdfDoc.fileName, pdfDoc.mimeType, '📝 Cover Letter');
         } else {
-          await telegramView.coverLetterComplete(ctx, runId);
+          const generatedDoc = await useResumeService.extractGeneratedDocument(
+            result.data,
+            'cover_letter.pdf',
+            'application/pdf'
+          );
+
+          if (generatedDoc?.buffer) {
+            await telegramView.sendDocument(
+              ctx,
+              generatedDoc.buffer,
+              generatedDoc.fileName || 'cover_letter.pdf',
+              generatedDoc.mimeType || 'application/pdf',
+              '📝 Cover Letter'
+            );
+          } else if (runId !== 'unknown') {
+            await telegramView.coverLetterComplete(ctx, runId);
+          } else {
+            throw new Error('No cover letter content or downloadable file returned by provider');
+          }
         }
       } catch (e2) {
         console.log('[Controller] UseResume also failed:', e2.message);
@@ -580,6 +594,30 @@ export class CVController {
       console.log('[Controller] Both generation failed:', e.message);
       await telegramView.actionError(ctx, 'Failed to generate documents: ' + e.message);
     }
+  }
+
+  extractCoverLetterContent(data) {
+    if (!data || typeof data !== 'object') return null;
+
+    const candidates = [
+      data.content,
+      data.text,
+      data.cover_letter,
+      data.coverLetter,
+      data.letter,
+      data.output,
+      data.data?.content,
+      data.data?.text,
+      data.data?.cover_letter,
+      data.data?.coverLetter,
+      data.result?.content,
+      data.result?.text,
+      data.result?.cover_letter,
+      data.result?.coverLetter,
+    ];
+
+    const found = candidates.find((value) => typeof value === 'string' && value.trim().length > 0);
+    return found ? found.trim() : null;
   }
 
   async tryAIThenUseResume(type, cvBuffer, jobDescription, structure, analysis, session) {
