@@ -1,10 +1,11 @@
 services:
-  - type: worker
+  - type: web
     name: cv-analyzer-bot
     env: node
     autoDeploy: true
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /
     envVars:
       - key: NODE_VERSION
         value: 20

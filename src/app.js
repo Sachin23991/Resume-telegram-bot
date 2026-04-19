@@ -1,9 +1,11 @@
+import http from 'node:http';
 import { Telegraf, session } from 'telegraf';
 import config from './config/index.js';
 import { UserState } from './models/index.js';
 import { cvController } from './controllers/index.js';
 
 const bot = new Telegraf(config.telegramBotToken);
+const port = Number(process.env.PORT || 10000);
 
 // Middleware
 bot.use(session());
@@ -67,9 +69,25 @@ bot.catch((err, ctx) => {
   ctx.reply('An unexpected error occurred. Please try again.');
 });
 
+const server = http.createServer((req, res) => {
+  if (req.url === '/' || req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('CV Analyzer Bot is running');
+    return;
+  }
+
+  res.writeHead(404, { 'Content-Type': 'text/plain' });
+  res.end('Not found');
+});
+
 // Start bot
 console.log('Starting CV Analyzer Bot...');
 console.log('[Boot] Patch marker: callback-ack-v2 + score-parser-v2');
+
+server.listen(port, () => {
+  console.log(`HTTP server listening on port ${port}`);
+});
+
 bot.launch().then(() => {
   console.log('Bot is running!');
 });
@@ -77,7 +95,9 @@ bot.launch().then(() => {
 // Graceful shutdown
 process.once('SIGINT', () => {
   bot.stop('SIGINT');
+  server.close();
 });
 process.once('SIGTERM', () => {
   bot.stop('SIGTERM');
+  server.close();
 });

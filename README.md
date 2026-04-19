@@ -24,7 +24,7 @@
 - [Architecture](#-architecture)
 - [Workflow](#-workflow)
 - [Installation](#-installation)
-- [Render Deployment (24/7)](#-render-deployment-247)
+- [Render Deployment (Web Service)](#-render-deployment-web-service)
 - [Configuration](#-configuration)
 - [Usage](#-usage)
 - [API Providers](#-api-providers)
@@ -315,23 +315,24 @@ npm run dev
 
 ---
 
-## Render Deployment (24/7)
+## Render Deployment (Web Service)
 
-This repository includes a Render Blueprint file: `render.yaml`.
+This repository includes a Render service definition: `render.yaml`.
 
 Deploy steps:
 
 1. Push this project to GitHub.
-2. In Render, click **New +** -> **Blueprint**.
+2. In Render, click **New +** -> **Web Service**.
 3. Select your GitHub repository.
-4. Render will detect `render.yaml` and create a **Worker** service.
+4. Render will detect `render.yaml` and create a **Web Service**.
 5. In Render, set all required environment variables from `.env.example`.
-6. Start the deploy and watch logs until you see: `Bot is running!`.
+6. Start the deploy and watch logs until you see: `HTTP server listening on port` and `Bot is running!`.
 
 Notes:
 
-- Use a **Worker** service (not Web Service) for Telegram bots.
+- Use a **Web Service** so Render can route traffic to the HTTP health endpoint.
 - Keep `autoDeploy: true` enabled so pushes redeploy automatically.
+- Free instances can still sleep, so this is the simplest no-logic-change deployment path, not guaranteed always-on uptime.
 - Do not commit your real `.env`; only set secrets in Render dashboard.
 
 ---
