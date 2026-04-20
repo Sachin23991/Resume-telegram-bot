@@ -3,6 +3,40 @@ import Tesseract from 'tesseract.js';
 import mammoth from 'mammoth';
 
 export class CVExtractorService {
+  resolveMimeType(mimeType, fileName = '') {
+    const normalizedMimeType = String(mimeType || '').toLowerCase();
+    const normalizedFileName = String(fileName || '').toLowerCase();
+
+    if (normalizedMimeType && normalizedMimeType !== 'application/octet-stream') {
+      if (normalizedMimeType === 'image/jpg') {
+        return 'image/jpeg';
+      }
+      return normalizedMimeType;
+    }
+
+    if (normalizedFileName.endsWith('.pdf')) {
+      return 'application/pdf';
+    }
+
+    if (normalizedFileName.endsWith('.docx')) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+
+    if (normalizedFileName.endsWith('.doc')) {
+      return 'application/msword';
+    }
+
+    if (normalizedFileName.endsWith('.png')) {
+      return 'image/png';
+    }
+
+    if (normalizedFileName.endsWith('.jpg') || normalizedFileName.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+
+    return normalizedMimeType || 'application/octet-stream';
+  }
+
   async extractFromPDF(buffer) {
     try {
       const data = await pdfParse(buffer);
@@ -35,17 +69,17 @@ export class CVExtractorService {
     }
   }
 
-  async extractText(buffer, mimeType) {
-    if (mimeType === 'application/pdf') {
+  async extractText(buffer, mimeType, fileName = '') {
+    const resolvedMimeType = this.resolveMimeType(mimeType, fileName);
+
+    if (resolvedMimeType === 'application/pdf') {
       return this.extractFromPDF(buffer);
     } else if (
-      mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      mimeType === 'application/msword' ||
-      mimeType === 'docx' ||
-      mimeType === 'doc'
+      resolvedMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      resolvedMimeType === 'application/msword'
     ) {
       return this.extractFromWord(buffer);
-    } else if (mimeType.startsWith('image/')) {
+    } else if (resolvedMimeType.startsWith('image/')) {
       return this.extractFromImage(buffer);
     } else {
       throw new Error('Unsupported file type. Please send a PDF, Word document, or image.');

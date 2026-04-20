@@ -23,6 +23,20 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_M
 }
 
 export class ResumeScoreService {
+  getMimeType(fileName = 'resume.pdf') {
+    const ext = String(fileName).split('.').pop()?.toLowerCase();
+    const mimeTypes = {
+      pdf: 'application/pdf',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      doc: 'application/msword',
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+    };
+
+    return mimeTypes[ext] || 'application/pdf';
+  }
+
   unwrapEnvelope(data) {
     if (!data || typeof data !== 'object') return data;
 
@@ -41,13 +55,14 @@ export class ResumeScoreService {
     return data;
   }
 
-  async getScore(cvBuffer, jobDescription, language = 'English') {
+  async getScore(cvBuffer, jobDescription, fileName = 'resume.pdf', language = 'English') {
     let lastError = null;
+    const mimeType = this.getMimeType(fileName);
 
     for (let i = 0; i < RESUME_SCORE_KEYS.length; i++) {
       const apiToken = RESUME_SCORE_KEYS[i];
       const formData = new FormData();
-      formData.append('file', new Blob([cvBuffer]), 'resume.pdf');
+      formData.append('file', new Blob([cvBuffer], { type: mimeType }), fileName);
       formData.append('content', jobDescription);
       formData.append('language', language);
 

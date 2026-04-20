@@ -12,8 +12,23 @@ export class APILayerService {
     this.disabledKeys = new Set();
   }
 
+  getMimeType(fileName = 'resume.pdf') {
+    const ext = String(fileName).split('.').pop()?.toLowerCase();
+    const mimeTypes = {
+      pdf: 'application/pdf',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      doc: 'application/msword',
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+    };
+
+    return mimeTypes[ext] || 'application/octet-stream';
+  }
+
   async parseResumeFromBuffer(buffer, fileName = 'resume.pdf') {
     let lastError = null;
+    const mimeType = this.getMimeType(fileName);
 
     for (let i = 0; i < APILAYER_KEYS.length; i++) {
       if (this.disabledKeys.has(i)) {
@@ -28,7 +43,7 @@ export class APILayerService {
           method: 'POST',
           headers: {
             'apikey': apiKey,
-            'Content-Type': 'application/octet-stream',
+            'Content-Type': mimeType,
           },
           body: buffer,
         });

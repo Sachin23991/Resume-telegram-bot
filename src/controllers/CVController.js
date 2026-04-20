@@ -3,6 +3,52 @@ import { aiService, cvExtractorService, useResumeService, cvParserService, workf
 import { telegramView } from '../views/index.js';
 
 export class CVController {
+  resolveIncomingFileType(file, fallbackFileName) {
+    const fileName = file?.file_name || fallbackFileName;
+    const rawMimeType = file?.mimeType || file?.mime_type || '';
+    const lowerFileName = String(fileName || '').toLowerCase();
+
+    if (rawMimeType && rawMimeType !== 'application/octet-stream') {
+      return {
+        mimeType: rawMimeType === 'image/jpg' ? 'image/jpeg' : rawMimeType,
+        fileName,
+      };
+    }
+
+    if (lowerFileName.endsWith('.docx')) {
+      return {
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        fileName,
+      };
+    }
+
+    if (lowerFileName.endsWith('.doc')) {
+      return {
+        mimeType: 'application/msword',
+        fileName,
+      };
+    }
+
+    if (lowerFileName.endsWith('.png')) {
+      return {
+        mimeType: 'image/png',
+        fileName,
+      };
+    }
+
+    if (lowerFileName.endsWith('.jpg') || lowerFileName.endsWith('.jpeg')) {
+      return {
+        mimeType: 'image/jpeg',
+        fileName,
+      };
+    }
+
+    return {
+      mimeType: 'application/pdf',
+      fileName,
+    };
+  }
+
   buildFullCVParsedData(parsedData, cvText, parserSource) {
     const safeParsedData = parsedData && typeof parsedData === 'object' ? parsedData : {};
     return {
@@ -108,14 +154,11 @@ export class CVController {
       return UserState.WAITING_CV;
     }
 
-    let mimeType, fileName;
-    if (ctx.message.document) {
-      mimeType = ctx.message.document.mimeType || 'application/pdf';
-      fileName = ctx.message.document.file_name || 'resume.pdf';
-    } else {
-      mimeType = 'image/png';
-      fileName = 'resume.png';
-    }
+    const resolvedFileType = ctx.message.document
+      ? this.resolveIncomingFileType(ctx.message.document, 'resume.pdf')
+      : { mimeType: 'image/png', fileName: 'resume.png' };
+
+    const { mimeType, fileName } = resolvedFileType;
 
     const validTypes = [
       'application/pdf',
@@ -140,7 +183,7 @@ export class CVController {
 
       // Extract text from CV (FULL TEXT for scoring)
       await ctx.reply('📄 Extracting CV content...');
-      const cvText = await cvExtractorService.extractText(bufferArr, mimeType);
+      const cvText = await cvExtractorService.extractText(bufferArr, mimeType, fileName);
 
       if (!cvText || cvText.trim().length < 50) {
         await telegramView.cvExtractError(ctx);
@@ -205,15 +248,11 @@ export class CVController {
     } else if (ctx.message.document || ctx.message.photo) {
       try {
         const file = ctx.message.document || ctx.message.photo?.[ctx.message.photo.length - 1];
-        let mimeType, fileName;
+        const resolvedFileType = ctx.message.document
+          ? this.resolveIncomingFileType(ctx.message.document, 'job_description.pdf')
+          : { mimeType: 'image/jpeg', fileName: 'job_description.jpg' };
 
-        if (ctx.message.document) {
-          mimeType = ctx.message.document.mimeType || 'application/pdf';
-          fileName = ctx.message.document.file_name || 'job_description.pdf';
-        } else {
-          mimeType = 'image/jpeg';
-          fileName = 'job_description.jpg';
-        }
+        const { mimeType, fileName } = resolvedFileType;
 
         const validTypes = [
           'application/pdf',
@@ -234,7 +273,7 @@ export class CVController {
         const bufferArr = Buffer.from(buffer);
 
         await ctx.reply('📋 Extracting job description content...');
-        jd = await cvExtractorService.extractText(bufferArr, mimeType);
+        jd = await cvExtractorService.extractText(bufferArr, mimeType, fileName);
       } catch (error) {
         console.error('JD extract error:', error);
         await ctx.reply('Failed to extract text from file. Please paste the job description as text.');
@@ -310,7 +349,7 @@ export class CVController {
 
         // Backup 1: Dedicated resume score API with the original uploaded file.
         try {
-          const scoreResult = await resumeScoreService.getScore(session.cv.bytes, jd);
+          const scoreResult = await resumeScoreService.getScore(session.cv.bytes, jd, session.cv.fileName);
           apiScore = scoreResult.score;
           analysis.score = scoreResult.score;
           analysis.matchPercentage = scoreResult.score;

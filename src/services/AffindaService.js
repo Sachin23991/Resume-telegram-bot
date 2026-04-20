@@ -9,6 +9,20 @@ export class AffindaService {
     this.currentKeyIndex = 0;
   }
 
+  getMimeType(fileName = 'resume.pdf') {
+    const ext = String(fileName).split('.').pop()?.toLowerCase();
+    const mimeTypes = {
+      pdf: 'application/pdf',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      doc: 'application/msword',
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+    };
+
+    return mimeTypes[ext] || 'application/pdf';
+  }
+
   getNextKey() {
     if (AFFINDA_KEYS.length === 0) {
       throw new Error('No Affinda API keys configured');
@@ -25,6 +39,7 @@ export class AffindaService {
    */
   async uploadResume(buffer, fileName = 'resume.pdf') {
     let lastError = null;
+    const mimeType = this.getMimeType(fileName);
 
     for (let attempt = 0; attempt < AFFINDA_KEYS.length; attempt++) {
       const { key, keyIndex } = this.getNextKey();
@@ -33,7 +48,7 @@ export class AffindaService {
         console.log(`[Affinda] Uploading resume with key ${keyIndex}/${AFFINDA_KEYS.length}...`);
 
         const formData = new FormData();
-        formData.append('file', new Blob([buffer], { type: 'application/pdf' }), fileName);
+        formData.append('file', new Blob([buffer], { type: mimeType }), fileName);
 
         // Use v2 endpoint - works without workspace
         const response = await fetch(`${BASE_URL_V2}/resumes`, {
