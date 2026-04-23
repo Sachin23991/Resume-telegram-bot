@@ -25,6 +25,7 @@
 - [Workflow](#-workflow)
 - [Installation](#-installation)
 - [Render Deployment (Web Service)](#-render-deployment-web-service)
+- [AWS Deployment (24/7)](#aws-deployment-247)
 - [Configuration](#-configuration)
 - [Usage](#-usage)
 - [API Providers](#-api-providers)
@@ -334,6 +335,16 @@ Notes:
 - Keep `autoDeploy: true` enabled so pushes redeploy automatically.
 - Free instances can still sleep, so this is the simplest no-logic-change deployment path, not guaranteed always-on uptime.
 - Do not commit your real `.env`; only set secrets in Render dashboard.
+
+## AWS Deployment (24/7)
+
+For always-on deployment on AWS ECS Fargate, follow the step-by-step guide in `AWS_DEPLOYMENT.md`.
+
+Quick notes:
+
+- Runs continuously (no sleep)
+- Uses containerized deployment (`Dockerfile` included)
+- Keep ECS service desired count at `1` to avoid duplicate Telegram polling workers
 
 ---
 
