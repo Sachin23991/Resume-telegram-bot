@@ -100,34 +100,39 @@ bot.catch(async (err, ctx) => {
   }
 });
 
-const server = http.createServer((req, res) => {
-  if (req.url === '/' || req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('CV Analyzer Bot is running');
-    return;
+const server = http.createServer(bot.webhookCallback(`/telegraf/${config.telegramBotToken.split(':')[1]}`));
+
+// Start bot and server
+if (process.env.NODE_ENV === 'production') {
+  // Production mode: use webhooks
+  console.log('Starting CV Analyzer Bot in production mode...');
+  const domain = process.env.WEBHOOK_DOMAIN; // Your public domain
+  if (!domain) {
+    throw new Error('WEBHOOK_DOMAIN environment variable is not set');
   }
+  const secretPath = `/telegraf/${bot.secretPathComponent()}`;
 
-  res.writeHead(404, { 'Content-Type': 'text/plain' });
-  res.end('Not found');
-});
-
-// Start bot
-console.log('Starting CV Analyzer Bot...');
-console.log('[Boot] Patch marker: callback-ack-v2 + score-parser-v2');
-
-server.listen(port, () => {
-  console.log(`HTTP server listening on port ${port}`);
-});
-
-bot.launch()
-  .then(() => {
-    console.log('Bot is running and listening continuously!');
-  })
-  .catch((error) => {
-    console.error('Failed to launch bot:', error);
-    server.close();
-    process.exitCode = 1;
+  server.listen(port, async () => {
+    console.log(`HTTP server listening on port ${port}`);
+    await bot.telegram.setWebhook(`https://${domain}${secretPath}`);
+    console.log(`Webhook set to https://${domain}${secretPath}`);
   });
+
+  bot.catch((err, ctx) => {
+    console.error('Bot error:', err);
+  });
+} else {
+  // Development mode: use long polling
+  console.log('Starting CV Analyzer Bot in development mode with long polling...');
+  bot.launch()
+    .then(() => {
+      console.log('Bot is running and listening continuously!');
+    })
+    .catch((error) => {
+      console.error('Failed to launch bot:', error);
+      process.exitCode = 1;
+    });
+}
 
 // Graceful shutdown
 process.once('SIGINT', () => {
