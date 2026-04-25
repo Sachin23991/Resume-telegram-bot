@@ -126,7 +126,7 @@ if (process.env.NODE_ENV === 'production') {
   console.log('Starting CV Analyzer Bot in development mode with long polling...');
   bot.launch()
     .then(() => {
-      console.log('Bot is running and listening continuously!');
+      console.log('Bot is running, listening and understanding messages continuously!');
     })
     .catch((error) => {
       console.error('Failed to launch bot:', error);
