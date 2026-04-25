@@ -7,26 +7,39 @@ import { cvController } from './controllers/index.js';
 const bot = new Telegraf(config.telegramBotToken);
 const port = Number(process.env.PORT || 10000);
 
+const runHandler = (handler) => async (ctx) => {
+  try {
+    await handler(ctx);
+  } catch (error) {
+    console.error('Update handler error:', error);
+    try {
+      await ctx.reply('An unexpected error occurred. Please try again or send /start.');
+    } catch (replyError) {
+      console.error('Failed to send error reply:', replyError);
+    }
+  }
+};
+
 // Middleware
 bot.use(session());
 
 // Start command
-bot.command('start', async (ctx) => {
+bot.command('start', runHandler(async (ctx) => {
   await cvController.handleStart(ctx);
-});
+}));
 
 // Help command
-bot.command('help', async (ctx) => {
+bot.command('help', runHandler(async (ctx) => {
   await cvController.handleHelp(ctx);
-});
+}));
 
 // Cancel command
-bot.command('cancel', async (ctx) => {
+bot.command('cancel', runHandler(async (ctx) => {
   await cvController.handleCancel(ctx);
-});
+}));
 
 // Handle documents (CV and JD files)
-bot.on('document', async (ctx) => {
+bot.on('document', runHandler(async (ctx) => {
   const state = cvController.getState(ctx.from.id.toString());
   if (state === UserState.WAITING_CV || state === UserState.WAITING_JD) {
     if (state === UserState.WAITING_CV) {
@@ -34,11 +47,15 @@ bot.on('document', async (ctx) => {
     } else {
       await cvController.handleJobDescription(ctx);
     }
+  } else if (state === UserState.PROCESSING) {
+    await ctx.reply('I am still processing your previous request. Please wait.');
+  } else if (state === UserState.WAITING_ACTION_CHOICE) {
+    await ctx.reply('Please choose one of the buttons above, or send /start to begin again.');
   }
-});
+}));
 
 // Handle photos (CV and JD images)
-bot.on('photo', async (ctx) => {
+bot.on('photo', runHandler(async (ctx) => {
   const state = cvController.getState(ctx.from.id.toString());
   if (state === UserState.WAITING_CV || state === UserState.WAITING_JD) {
     if (state === UserState.WAITING_CV) {
@@ -46,27 +63,41 @@ bot.on('photo', async (ctx) => {
     } else {
       await cvController.handleJobDescription(ctx);
     }
+  } else if (state === UserState.PROCESSING) {
+    await ctx.reply('I am still processing your previous request. Please wait.');
+  } else if (state === UserState.WAITING_ACTION_CHOICE) {
+    await ctx.reply('Please choose one of the buttons above, or send /start to begin again.');
   }
-});
+}));
 
 // Handle text messages
-bot.on('text', async (ctx) => {
+bot.on('text', runHandler(async (ctx) => {
   const state = cvController.getState(ctx.from.id.toString());
 
   if (state === UserState.WAITING_JD) {
     await cvController.handleJobDescription(ctx);
+  } else if (state === UserState.WAITING_CV) {
+    await ctx.reply('Please send your CV as a PDF, Word document, or image. Send /start to restart.');
+  } else if (state === UserState.PROCESSING) {
+    await ctx.reply('I am still processing your previous request. Please wait.');
+  } else if (state === UserState.WAITING_ACTION_CHOICE) {
+    await ctx.reply('Please choose one of the buttons above, or send /start to begin again.');
   }
-});
+}));
 
 // Handle callback queries (button clicks)
-bot.on('callback_query', async (ctx) => {
+bot.on('callback_query', runHandler(async (ctx) => {
   await cvController.handleActionChoice(ctx);
-});
+}));
 
 // Error handler
-bot.catch((err, ctx) => {
+bot.catch(async (err, ctx) => {
   console.error('Bot error:', err);
-  ctx.reply('An unexpected error occurred. Please try again.');
+  try {
+    await ctx.reply('An unexpected error occurred. Please try again.');
+  } catch (replyError) {
+    console.error('Failed to send bot error reply:', replyError);
+  }
 });
 
 const server = http.createServer((req, res) => {
@@ -88,9 +119,15 @@ server.listen(port, () => {
   console.log(`HTTP server listening on port ${port}`);
 });
 
-bot.launch().then(() => {
-  console.log('Bot is running!');
-});
+bot.launch()
+  .then(() => {
+    console.log('Bot is running and listening continuously!');
+  })
+  .catch((error) => {
+    console.error('Failed to launch bot:', error);
+    server.close();
+    process.exitCode = 1;
+  });
 
 // Graceful shutdown
 process.once('SIGINT', () => {

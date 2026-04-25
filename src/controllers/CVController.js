@@ -413,6 +413,7 @@ export class CVController {
       // Store results
       session.cv.structure = structure;
       session.setAnalysis(analysis);
+      session.setState(UserState.WAITING_ACTION_CHOICE);
       UserSessionStore.update(userId, session);
       await workflowStoreService.upsertStage(userId, 'analysis_complete', {
         score: analysis.score,
@@ -429,6 +430,8 @@ export class CVController {
       return UserState.WAITING_ACTION_CHOICE;
     } catch (error) {
       console.error('Analysis error:', error);
+      session.setState(UserState.WAITING_JD);
+      UserSessionStore.update(userId, session);
       await telegramView.error(ctx, 'Failed to analyze CV: ' + error.message);
       return UserState.WAITING_JD;
     }
