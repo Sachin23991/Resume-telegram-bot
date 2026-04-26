@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🤖 CV Analyzer Bot
+# 🤖 CV Analyzer Pro
 
 ### *AI-Powered Resume Analysis & Enhancement Telegram Bot*
 
@@ -21,24 +21,23 @@
 
 - [Overview](#-overview)
 - [Features](#-features)
-- [Architecture](#-architecture)
-- [Workflow](#-workflow)
+- [Quick Start](#-quick-start)
 - [Installation](#-installation)
-- [Render Deployment (Web Service)](#-render-deployment-web-service)
-- [AWS Deployment (24/7)](#aws-deployment-247)
 - [Configuration](#-configuration)
+- [Deployment](#-deployment)
 - [Usage](#-usage)
-- [API Providers](#-api-providers)
+- [Documentation](#-documentation)
 - [Project Structure](#-project-structure)
-- [Advanced Features](#-advanced-features)
+- [API Providers](#-api-providers)
+- [Troubleshooting](#-troubleshooting)
 
 ---
 
 ## 🎯 Overview
 
-**CV Analyzer Bot** is an intelligent Telegram bot that helps job seekers analyze, score, and improve their resumes against specific job descriptions. Built with a robust multi-provider AI architecture, it ensures high availability through intelligent API failover systems.
+**CV Analyzer Pro** is an intelligent Telegram bot that helps job seekers analyze, score, and improve their resumes against specific job descriptions. Built with a robust multi-provider AI architecture, it ensures high availability through intelligent API failover systems.
 
-### What Makes It Special?
+### Key Capabilities
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -51,300 +50,98 @@
 │  📊 Smart Resume Parsing                                       │
 │     └── APILayer → CVParser → UseResume → AI Fallback          │
 │                                                                 │
-│  🎯 Comprehensive Analysis                                       │
-│     └── Match Score • Keywords • Suggestions • Improvements  │
+│  🎯 Comprehensive Analysis                                     │
+│     └── Match Score • Keywords • Suggestions • Improvements    │
+│                                                                 │
+│  📝 Document Generation                                        │
+│     └── Improved CV • Cover Letter • PDF/DOCX Output           │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### What Makes It Special
+
+1. **Triple-Layer Fallback System**: If one AI provider fails, automatically tries the next
+2. **Circuit Breaker Pattern**: Intelligently disables failing API keys, recovers automatically
+3. **Multi-Format Support**: PDF, DOCX, PNG, JPG with OCR for images
+4. **Professional Output**: ATS-compatible resume formatting
+5. **Session Persistence**: MongoDB-backed workflow tracking
 
 ---
 
 ## ✨ Features
 
-### Core Capabilities
+### Core Features
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| 📄 **CV Analysis** | Extract and analyze resume content from PDF, DOCX, or images | ✅ Active |
-| 🎯 **Match Scoring** | AI-powered 0-100 score against job descriptions | ✅ Active |
-| 🔍 **Keyword Detection** | Identify missing keywords from job requirements | ✅ Active |
-| 💡 **Smart Suggestions** | AI-generated improvement recommendations | ✅ Active |
-| ✨ **Resume Rewrite** | Generate improved CV with better formatting | ✅ Active |
-| 📝 **Cover Letters** | Create tailored cover letters for each job | ✅ Active |
-| 🔄 **Multi-Format Support** | PDF, DOCX, PNG, JPG input/output | ✅ Active |
-| 💾 **Session Persistence** | MongoDB workflow tracking | ✅ Active |
+| 📄 **CV Analysis** | Extract and analyze resume content from PDF, DOCX, or images | ✅ |
+| 🎯 **Match Scoring** | AI-powered 0-100 score against job descriptions | ✅ |
+| 🔍 **Keyword Detection** | Identify missing keywords from job requirements | ✅ |
+| 💡 **Smart Suggestions** | AI-generated improvement recommendations | ✅ |
+| ✨ **Resume Rewrite** | Generate improved CV with better formatting | ✅ |
+| 📝 **Cover Letters** | Create tailored cover letters for each job | ✅ |
+| 🔄 **Multi-Format Support** | PDF, DOCX, PNG, JPG input/output | ✅ |
+| 💾 **Session History** | MongoDB workflow tracking | ✅ |
 
 ### Supported File Formats
 
 ```
-Input Formats:
-├── 📄 PDF Documents (.pdf)
-├── 📝 Microsoft Word (.docx, .doc)
-├── 🖼️ Images (.png, .jpg, .jpeg) [OCR enabled]
-└── 💬 Plain Text (pasted directly)
-
-Output Formats:
-├── 📄 PDF Documents (.pdf)
-└── 📝 Microsoft Word (.docx)
+Input Formats:                      Output Formats:
+├── 📄 PDF (.pdf)                   ├── 📄 PDF (.pdf)
+├── 📝 Word (.docx, .doc)           └── 📝 Word (.docx)
+├── 🖼️ Images (.png, .jpg)
+└── 💬 Text (pasted directly)
 ```
 
 ---
 
-## 🏗️ Architecture
+## 🚀 Quick Start
 
-### System Architecture Diagram
+```bash
+# 1. Clone the repository
+git clone https://github.com/Sachin23991/Resume-telegram-bot.git
+cd Resume-telegram-bot
 
-```mermaid
-graph TB
-    subgraph "👤 User Layer"
-        TG[Telegram Client]
-    end
+# 2. Install dependencies
+npm install
 
-    subgraph "🤖 Bot Layer"
-        BOT[Telegraf Bot]
-        SESS[Session Manager]
-        CTRL[CV Controller]
-    end
+# 3. Create environment file
+cp .env.example .env
 
-    subgraph "🧠 Services Layer"
-        EXTRACT[CV Extractor<br/>PDF/DOCX/OCR]
-        AI[AIService<br/>OpenRouter/Gemini/OpenAI]
-        PARSERS[Parser Chain<br/>APILayer/CVParser/UseResume]
-        SCORE[Scoring Engine<br/>Multi-Provider]
-        DOC[Document Generator<br/>PDF/DOCX]
-    end
+# 4. Configure your API keys (see Configuration section)
+nano .env
 
-    subgraph "🔧 Infrastructure"
-        CONFIG[Config Manager<br/>18+ API Keys]
-        ROTATION[Key Rotation<br/>Auto-Failover]
-        DB[(MongoDB<br/>Workflow Store)]
-    end
-
-    subgraph "🌐 External APIs"
-        OR[OpenRouter.ai<br/>GPT-4o-mini]
-        GEM[Gemini API<br/>gemini-2.5-flash]
-        OAI[OpenAI API<br/>GPT-4o-mini]
-        AL[APILayer]
-        CP[CVParser]
-        UR[UseResume]
-    end
-
-    TG -->|Send CV/JD| BOT
-    BOT --> SESS
-    SESS --> CTRL
-    CTRL --> EXTRACT
-    CTRL --> AI
-    CTRL --> PARSERS
-    CTRL --> SCORE
-    CTRL --> DOC
-
-    AI --> ROTATION
-    ROTATION --> OR
-    ROTATION --> GEM
-    ROTATION --> OAI
-
-    PARSERS --> AL
-    PARSERS --> CP
-    PARSERS --> UR
-
-    CTRL --> DB
-    SESS --> DB
-```
-
-### Multi-Provider Fallback Chain
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                    AI Provider Fallback Chain                       │
-└────────────────────────────────────────────────────────────────────┘
-
-   Primary: OpenRouter (GPT-4o-mini)
-      │
-      ├── Key 1 ──► Key 2 ──► Key 3 ──► Fallback Key
-      │    (rotate on failure)
-      │
-      ▼
-   Secondary: Google Gemini (gemini-2.5-flash)
-      │
-      └── Automatic fallback if OpenRouter fails
-      │
-      ▼
-   Tertiary: OpenAI Direct (GPT-4o-mini)
-      │
-      └── Final fallback option
-      │
-      ▼
-   Error: "All AI providers temporarily unavailable"
-```
-
-### Parser Fallback Chain
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                    Resume Parser Fallback Chain                     │
-└────────────────────────────────────────────────────────────────────┘
-
-   1️⃣ APILayer Parser (Primary)
-      │
-      ▼ (on failure)
-   2️⃣ CVParser API (Secondary)
-      │
-      ▼ (on failure)
-   3️⃣ UseResume API (Tertiary)
-      │
-      ▼ (on failure)
-   4️⃣ AI Fallback (OpenRouter → Gemini)
-      │
-      └── Extract structured data using LLM
-      │
-      ▼ (on failure)
-   5️⃣ Text Only (Final)
-      └── Use raw extracted text without parsing
+# 5. Start the bot
+npm start
 ```
 
 ---
 
-## 🔄 Workflow
-
-### User Interaction Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Bot as Telegram Bot
-    participant Session as Session Store
-    participant Controller as CV Controller
-    participant Extractor as CV Extractor
-    participant AI as AI Services
-    participant Parsers as Parser APIs
-    participant DB as MongoDB
-
-    User->>Bot: /start
-    Bot->>Session: Create Session
-    Session->>DB: Store Stage: "start"
-    Bot->>User: Welcome + Instructions
-
-    User->>Bot: Upload CV (PDF/DOCX/Image)
-    Bot->>Controller: handleCV()
-    Controller->>Extractor: Extract Text (OCR if needed)
-    Extractor-->>Controller: Raw Text
-
-    par Parse Resume
-        Controller->>Parsers: Try APILayer
-        Parsers-->>Controller: Parsed Data
-    and Fallback 1
-        Controller->>Parsers: Try CVParser
-        Parsers-->>Controller: Parsed Data
-    and Fallback 2
-        Controller->>Parsers: Try UseResume
-        Parsers-->>Controller: Parsed Data
-    and AI Fallback
-        Controller->>AI: Extract with LLM
-        AI-->>Controller: Structured Data
-    end
-
-    Controller->>Session: Store CV + Parsed Data
-    Session->>DB: Store Stage: "cv_uploaded"
-    Controller->>Bot: askForJD()
-    Bot->>User: Request Job Description
-
-    User->>Bot: Send Job Description
-    Bot->>Controller: handleJobDescription()
-    Controller->>AI: Analyze CV vs JD
-    Controller->>AI: Score Match
-    Controller->>AI: Get Suggestions
-    AI-->>Controller: Analysis Results
-
-    Controller->>Session: Store Analysis
-    Session->>DB: Store Stage: "analysis_complete"
-    Controller->>Bot: Show Results
-    Bot->>User: Score + Analysis + Options
-
-    alt User selects "Improve CV"
-        User->>Bot: action_improve
-        Bot->>Controller: handleImproveResume()
-        Controller->>AI: Rewrite Resume
-        Controller->>Controller: Generate Document
-        Bot->>User: Send Improved CV File
-    else User selects "Cover Letter"
-        User->>Bot: action_cover
-        Bot->>Controller: handleGenerateCoverLetter()
-        Controller->>AI: Generate Cover Letter
-        Bot->>User: Send Cover Letter PDF
-    else User selects "Both"
-        Bot->>Controller: handleGenerateBoth()
-        Bot->>User: Send Both Documents
-    end
-
-    Controller->>Session: Delete Session
-    Bot->>User: Done! Send /start for new analysis
-```
-
----
-
-## 🚀 Installation
+## 📦 Installation
 
 ### Prerequisites
 
 - Node.js 18+ 
 - MongoDB Atlas account (or local MongoDB)
 - Telegram Bot Token (from @BotFather)
-- API keys for AI providers (see Configuration)
+- API keys for AI providers (see [Configuration](#-configuration))
 
 ### Step-by-Step Setup
 
 ```bash
-# 1️⃣ Clone the repository
-git clone https://github.com/yourusername/cv-analyzer-bot.git
-cd cv-analyzer-bot
-
-# 2️⃣ Install dependencies
+# 1. Install Node.js dependencies
 npm install
 
-# 3️⃣ Create environment file
+# 2. Set up environment variables
+# Copy .env.example to .env and fill in your values
 cp .env.example .env
 
-# 4️⃣ Edit .env with your API keys (see Configuration section)
-nano .env
-
-# 5️⃣ Start the bot
+# 3. Start in development mode (long polling)
 npm start
 
-# Or use development mode with auto-reload
+# Or use watch mode for development
 npm run dev
 ```
-
----
-
-## Render Deployment (Web Service)
-
-This repository includes a Render service definition: `render.yaml`.
-
-Deploy steps:
-
-1. Push this project to GitHub.
-2. In Render, click **New +** -> **Web Service**.
-3. Select your GitHub repository.
-4. Render will detect `render.yaml` and create a **Web Service**.
-5. In Render, set all required environment variables from `.env.example`.
-6. Start the deploy and watch logs until you see: `HTTP server listening on port` and `Bot is running!`.
-
-Notes:
-
-- Use a **Web Service** so Render can route traffic to the HTTP health endpoint.
-- Keep `autoDeploy: true` enabled so pushes redeploy automatically.
-- Free instances can still sleep, so this is the simplest no-logic-change deployment path, not guaranteed always-on uptime.
-- Do not commit your real `.env`; only set secrets in Render dashboard.
-
-## AWS Deployment (24/7)
-
-For always-on deployment on AWS ECS Fargate, follow the step-by-step guide in `AWS_DEPLOYMENT.md`.
-
-Quick notes:
-
-- Runs continuously (no sleep)
-- Uses containerized deployment (`Dockerfile` included)
-- Keep ECS service desired count at `1` to avoid duplicate Telegram polling workers
 
 ---
 
@@ -352,77 +149,101 @@ Quick notes:
 
 ### Environment Variables
 
-Create a `.env` file with the following configuration:
+Create a `.env` file with the following:
 
 ```bash
 # ═══════════════════════════════════════════════════════════
-# 🚀 CV Analyzer Bot - Environment Configuration
+# CV Analyzer Bot - Environment Configuration
 # ═══════════════════════════════════════════════════════════
 
-# ─── Telegram Bot ─────────────────────────────────────────
+# Telegram Bot (required)
 # Get from @BotFather: https://t.me/botfather
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
-# ─── MongoDB Database ─────────────────────────────────────
-# MongoDB Atlas or local instance
+# MongoDB Database (required)
 MONGODB_URL=mongodb+srv://user:password@cluster.mongodb.net/dbname
 MONGODB_DB_NAME=cv-analyzer
 
-# ─── OpenRouter AI (Primary Provider) ─────────────────────
+# OpenRouter AI Keys (Primary Provider - 3 keys + fallback)
 # Get from: https://openrouter.ai/
 OPENROUTER_KEY_1=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_2=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_3=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_FALLBACK=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 
-# ─── Google Gemini (Secondary Provider) ────────────────────
+# Google Gemini (Secondary Provider)
 # Get from: https://ai.google.dev/
 GEMINI_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# ─── OpenAI (Tertiary Provider) ──────────────────────────
+# OpenAI (Tertiary Provider - optional)
 # Get from: https://platform.openai.com/
 OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 
-# ─── Resume Parser APIs ───────────────────────────────────
-# APILayer Resume Parser
+# APILayer Resume Parser (4 keys for rotation)
+# Get from: https://apilayer.com/
 APILAYER_KEY_1=xxxxxxxxxxxxxxxxxxxxxxxx
 APILAYER_KEY_2=xxxxxxxxxxxxxxxxxxxxxxxx
 APILAYER_KEY_3=xxxxxxxxxxxxxxxxxxxxxxxx
 APILAYER_KEY_4=xxxxxxxxxxxxxxxxxxxxxxxx
 
-# Affinda Resume Parser
-AFFINDA_KEY_1=aff_xxxxxxxxxxxxxxxxxxxxxxxx
-AFFINDA_KEY_2=aff_xxxxxxxxxxxxxxxxxxxxxxxx
-AFFINDA_KEY_3=aff_xxxxxxxxxxxxxxxxxxxxxxxx
-AFFINDA_KEY_4=aff_xxxxxxxxxxxxxxxxxxxxxxxx
-
-# CVParser API
+# CVParser API (4 keys for rotation)
+# Get from: https://cvparser-api.com/
 CVPARSER_KEY_1=cvp_live_xxxxxxxxxxxxxxxxxxxxxxxx
 CVPARSER_KEY_2=cvp_live_xxxxxxxxxxxxxxxxxxxxxxxx
 CVPARSER_KEY_3=cvp_live_xxxxxxxxxxxxxxxxxxxxxxxx
 CVPARSER_KEY_4=cvp_live_xxxxxxxxxxxxxxxxxxxxxxxx
+CVPARSER_API_URL=https://api.cvparser-api.com/graphql
 
-# Resume Score API (ApyHub)
-RESUME_SCORE_KEY_1=APY0xxxxxxxxxxxxxxxxxxxxxxxx
-RESUME_SCORE_KEY_2=APY0xxxxxxxxxxxxxxxxxxxxxxxx
-RESUME_SCORE_KEY_3=APY0xxxxxxxxxxxxxxxxxxxxxxxx
-RESUME_SCORE_KEY_4=APY0xxxxxxxxxxxxxxxxxxxxxxxx
-
-# UseResume API
+# UseResume API (3 keys for rotation)
+# Get from: https://useresume.com/
 USERESUME_KEY_1=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
 USERESUME_KEY_2=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
 USERESUME_KEY_3=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-### API Key Setup Guide
+### API Key Setup
 
-| Provider | URL | Purpose | Cost |
-|----------|-----|---------|------|
-| [OpenRouter](https://openrouter.ai/) | `openrouter.ai` | Primary AI (GPT-4o-mini) | Free tier available |
-| [Google Gemini](https://ai.google.dev/) | `makersuite.google.com` | Secondary AI | Free tier available |
-| [OpenAI](https://platform.openai.com/) | `platform.openai.com` | Tertiary AI | Pay per use |
-| [APILayer](https://apilayer.com/) | `apilayer.com` | Resume parsing | Free tier |
-| [Affinda](https://www.affinda.com/) | `affinda.com` | Resume parsing | Free tier |
+| Provider | URL | Purpose | Free Tier |
+|----------|-----|---------|-----------|
+| [OpenRouter](https://openrouter.ai/) | `openrouter.ai` | Primary AI (GPT-4o-mini) | ✅ |
+| [Google Gemini](https://ai.google.dev/) | `makersuite.google.com` | Secondary AI | ✅ |
+| [OpenAI](https://platform.openai.com/) | `platform.openai.com` | Tertiary AI | ❌ |
+| [APILayer](https://apilayer.com/) | `apilayer.com` | Resume parsing | ✅ 50/month |
+| [CVParser](https://cvparser-api.com/) | `cvparser-api.com` | Resume parsing | ✅ Trial |
+| [UseResume](https://useresume.com/) | `useresume.com` | Resume parsing | ✅ Trial |
+
+---
+
+## 🌐 Deployment
+
+### Render Deployment (Web Service)
+
+The project includes `render.yaml` for easy deployment:
+
+1. Push to GitHub
+2. In Render, click **New +** → **Web Service**
+3. Select your repository
+4. Render auto-detects `render.yaml`
+5. Set environment variables in Render dashboard
+6. Deploy!
+
+**Notes:**
+- Uses webhook mode in production
+- Free instances may sleep (not suitable for 24/7 bot)
+
+### AWS ECS Fargate (24/7)
+
+For always-on deployment, follow the detailed guide:
+
+📄 **[AWS Deployment Guide →](docs/AWS_DEPLOYMENT.md)**
+
+```bash
+# Quick summary:
+# 1. Build Docker image
+# 2. Push to ECR
+# 3. Create ECS task definition
+# 4. Deploy as Fargate service
+```
 
 ---
 
@@ -434,37 +255,33 @@ USERESUME_KEY_3=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
 |---------|-------------|
 | `/start` | Begin new CV analysis session |
 | `/help` | Show help and supported formats |
+| `/menu` | Show main menu with options |
 | `/cancel` | Cancel current session |
+| `/history` | View past analyses |
+| `/stats` | Your usage statistics |
+| `/info` | Bot information and version |
 
-### Step-by-Step Usage
+### User Flow
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    How to Use the Bot                       │
-└─────────────────────────────────────────────────────────────┘
+1. Send /start
+   └─► Bot welcomes you and requests CV
 
-Step 1: Start the Bot
-   └─ Send /start to begin
+2. Upload CV (PDF/DOCX/Image)
+   └─► Bot extracts and parses
 
-Step 2: Upload Your CV
-   └─ Send PDF, DOCX, or image of your resume
-   └─ Bot extracts text and parses structure
+3. Send Job Description
+   └─► Paste text or upload file
 
-Step 3: Send Job Description
-   └─ Paste text or upload JD file
-   └─ Bot analyzes match
+4. View Analysis
+   └─► Score + Strengths + Weaknesses + Suggestions
 
-Step 4: View Analysis
-   └─ Match Score (0-100)
-   └─ Missing Keywords
-   └─ Strengths & Weaknesses
-   └─ Improvement Suggestions
-
-Step 5: Choose Action
-   ├─ ✅ Generate Improved CV
-   ├─ 📝 Generate Cover Letter
-   ├─ 🔄 Generate Both
-   └─ ❌ Done (End session)
+5. Choose Action
+   ├─► [Improve CV] → Get rewritten resume
+   ├─► [Cover Letter] → Get tailored cover letter
+   ├─► [Both] → Get both documents
+   ├─► [Report] → View detailed analysis
+   └─► [Done] → End session
 ```
 
 ### Example Conversation
@@ -474,18 +291,12 @@ Step 5: Choose Action
 
 🤖 Bot:
 ┌─────────────────────────────────────┐
-│ 👋 Welcome to CV Analyzer Bot!    │
-│                                    │
-│ I help you analyze, score, and     │
-│ improve your resume.               │
-│                                    │
-│ 📊 Score your CV match (0-100)     │
-│ 🔍 Find missing keywords           │
-│ 💡 Suggest improvements            │
-│ ✨ Create improved resume          │
-│ 📝 Generate cover letter           │
-│                                    │
-│ To get started, send me your CV!  │
+│ 👋 Welcome to CV Analyzer Bot!      │
+│                                     │
+│ I help you analyze, score, and      │
+│ improve your resume.                │
+│                                     │
+│ To get started, send me your CV!    │
 └─────────────────────────────────────┘
 
 👤 User: [Uploads resume.pdf]
@@ -508,8 +319,8 @@ You can send:
 
 📊 Analysis Results
 
-*Match Score:* 72/100 (🤖 AI Analysis)
-📊 Decent match. Some improvements could help you stand out.
+Match Score: 72/100 (🤖 AI Analysis)
+📊 Decent match. Some improvements could help.
 
 ✅ Strengths:
 • Strong technical background
@@ -518,57 +329,36 @@ You can send:
 ❌ Missing Keywords:
 React Native, Docker, CI/CD, Agile
 
-💡 Key Improvements Suggested:
+💡 Key Improvements:
 1. [Experience] Add quantified achievements
 2. [Skills] Include Docker and Kubernetes
-3. [Summary] Tailor to job requirements
 
-✨ Would you like me to generate an improved CV?
-[Yes] [Cover Letter] [Both] [No]
+What would you like to do?
+[Improve CV] [Cover Letter] [Both] [Done]
 ```
 
 ---
 
-## 🔌 API Providers
+## 📚 Documentation
 
-### AI Provider Details
+For detailed technical information, see the documentation files:
 
-#### OpenRouter (Primary)
-- **Model**: `openai/gpt-4o-mini`
-- **Features**: Fast, cost-effective, OpenAI-compatible
-- **Rotation**: 4 keys with automatic failover
-- **Fallback**: 3 retry attempts per key, then switch provider
-
-#### Google Gemini (Secondary)
-- **Model**: `gemini-2.5-flash`
-- **Features**: Google's latest multimodal AI
-- **Use Case**: Fallback when OpenRouter unavailable
-- **Format**: Native Gemini API
-
-#### OpenAI (Tertiary)
-- **Model**: `gpt-4o-mini`
-- **Features**: Direct OpenAI access
-- **Use Case**: Final fallback option
-- **Note**: Requires valid OpenAI API key
-
-### Resume Parser Details
-
-| Parser | Type | Best For | Fallback Priority |
-|--------|------|----------|-------------------|
-| **APILayer** | REST API | Structured PDFs | 1st |
-| **CVParser** | GraphQL | Complex layouts | 2nd |
-| **UseResume** | REST API | Modern formats | 3rd |
-| **AI Extraction** | LLM | Unstructured/OCR | 4th |
+| Document | Description |
+|----------|-------------|
+| **[Architecture](docs/ARCHITECTURE.md)** | System architecture, design patterns, component diagrams |
+| **[Workflow](docs/WORKFLOW.md)** | Complete user journey, state machine, command reference |
+| **[Scoring Mechanism](docs/SCORING_MECHANISM.md)** | How scores are calculated, ATS weights, AI prompts |
+| **[API Fallback](docs/API_FALLBACK.md)** | Fallback chains, circuit breaker, retry strategy |
+| **[AWS Deployment](docs/AWS_DEPLOYMENT.md)** | Step-by-step AWS ECS deployment guide |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-cv-analyzer-bot/
+Resume-telegram-bot/
 │
 ├── 📂 src/
-│   │
 │   ├── 📄 app.js                    # Entry point - Bot initialization
 │   │
 │   ├── 📂 config/
@@ -578,301 +368,150 @@ cv-analyzer-bot/
 │   │   └── 📄 CVController.js       # Main business logic orchestrator
 │   │
 │   ├── 📂 models/
+│   │   ├── 📄 index.js              # Model exports
 │   │   └── 📄 UserSession.js        # Session state management
 │   │
 │   ├── 📂 services/                 # Core business services
 │   │   ├── 📄 AIService.js          # AI provider abstraction
-│   │   ├── 📄 APIKeyRotationService.js  # Key rotation & failover
+│   │   ├── 📄 APIKeyRotationService.js  # Key rotation & circuit breaker
+│   │   ├── 📄 APILayerService.js    # APILayer integration
 │   │   ├── 📄 CVExtractorService.js # PDF/DOCX/OCR extraction
+│   │   ├── 📄 CVParserService.js    # CVParser integration
+│   │   ├── 📄 UseResumeService.js   # UseResume integration
 │   │   ├── 📄 DocumentGeneratorService.js  # PDF/DOCX generation
 │   │   ├── 📄 ResumeRendererService.js   # Resume templating
 │   │   ├── 📄 ResumeTemplateService.js   # Resume data structures
-│   │   ├── 📄 APILayerService.js    # APILayer integration
-│   │   ├── 📄 AffindaService.js     # Affinda integration
-│   │   ├── 📄 CVParserService.js    # CVParser integration
-│   │   ├── 📄 ResumeScoreService.js # Resume scoring API
-│   │   ├── 📄 UseResumeService.js  # UseResume integration
-│   │   ├── 📄 WorkflowStoreService.js  # MongoDB persistence
-│   │   └── 📄 index.js              # Service exports
+│   │   └── 📄 WorkflowStoreService.js    # MongoDB persistence
 │   │
 │   ├── 📂 utils/
 │   │   └── 📄 index.js              # Utility functions
 │   │
-│   └── 📂 views/
-│       └── 📄 TelegramView.js        # UI/Messages for Telegram
+│   ├── 📂 views/
+│   │   ├── 📄 index.js              # View exports
+│   │   └── 📄 TelegramView.js       # UI/Messages for Telegram
+│   │
+│   └── 📂 prompts/
+│       └── 📄 resume-score-system-prompt.md  # AI scoring prompt
 │
-├── 📄 .env                          # Environment variables (create from .env.example)
-├── 📄 .env.example                  # Environment template
-├── 📄 package.json                  # Dependencies & scripts
-└── 📄 README.md                     # This file
-```
-
-### Architecture Patterns
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                    Architectural Patterns                       │
-├────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  🏛️ MVC Pattern                                                │
-│     ├── Model: UserSession.js (state management)               │
-│     ├── View: TelegramView.js (message formatting)              │
-│     └── Controller: CVController.js (business logic)            │
-│                                                                 │
-│  🔧 Service Layer Pattern                                       │
-│     ├── Each external API wrapped in service class           │
-│     ├── Common interface for interchangeable providers         │
-│     └── Fallback chain abstracted from controllers             │
-│                                                                 │
-│  🔄 Chain of Responsibility                                     │
-│     ├── Parser fallback chain                                  │
-│     └── AI provider fallback chain                             │
-│                                                                 │
-│  📦 Repository Pattern                                         │
-│     ├── WorkflowStoreService abstracts MongoDB                 │
-│     └── Session store with get/set/update/delete               │
-│                                                                 │
-└────────────────────────────────────────────────────────────────┘
+├── 📂 docs/                       # Documentation
+│   ├── 📄 ARCHITECTURE.md         # System architecture
+│   ├── 📄 WORKFLOW.md             # User workflow
+│   ├── 📄 SCORING_MECHANISM.md    # Scoring details
+│   ├── 📄 API_FALLBACK.md         # Fallback system
+│   └── 📄 AWS_DEPLOYMENT.md       # AWS deployment
+│
+├── 📄 .env.example                # Environment template
+├── 📄 Dockerfile                  # Container configuration
+├── 📄 package.json                # Dependencies & scripts
+├── 📄 render.yaml                 # Render deployment config
+└── 📄 README.md                   # This file
 ```
 
 ---
 
-## 🎨 Advanced Features
+## 🔌 API Providers
 
-### 1. Intelligent API Key Rotation
-
-```javascript
-// Automatically rotates through 4 OpenRouter keys
-// Disables failed keys, uses fallback when needed
-
-const keyRotation = {
-  keys: ['KEY_1', 'KEY_2', 'KEY_3'],
-  fallback: 'FALLBACK_KEY',
-  strategy: 'round-robin-with-health-check',
-  maxFailuresBeforeSkip: 3,
-  backoffStrategy: 'exponential'
-};
-```
-
-**Benefits:**
-- ✅ No single point of failure
-- ✅ Automatic rate limit handling
-- ✅ Key health monitoring
-- ✅ Graceful degradation
-
-### 2. Multi-Stage Parser Fallback
+### AI Provider Chain
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                Parser Selection Strategy                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   Attempt 1: APILayer                                       │
-│   ├── Best for: Clean, structured PDFs                      │
-│   └── Success rate: ~85%                                    │
-│                                                             │
-│   Attempt 2: CVParser                                       │
-│   ├── Best for: Complex layouts                           │
-│   └── Success rate: ~75%                                    │
-│                                                             │
-│   Attempt 3: UseResume                                      │
-│   ├── Best for: Modern formats                              │
-│   └── Success rate: ~70%                                    │
-│                                                             │
-│   Attempt 4: AI Extraction (LLM)                            │
-│   ├── Best for: OCR/images, unstructured text            │
-│   └── Success rate: ~90% (with trade-offs)               │
-│                                                             │
-│   Fallback: Raw Text Only                                   │
-│   └── Always works - minimal parsing                      │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+Primary: OpenRouter (GPT-4o-mini)
+   │
+   ├─ KEY_1 → KEY_2 → KEY_3 → FALLBACK_KEY
+   │
+   ▼ (on failure)
+Secondary: Google Gemini (gemini-2.5-flash)
+   │
+   ▼ (on failure)
+Tertiary: Default Score (50/100)
 ```
 
-### 3. Resume Document Generation
+### Parser Chain
 
-**PDF Generation Features:**
-- Professional formatting with sections
-- Contact info header
-- Skills, Experience, Education sections
-- Bullet point preservation
-- Page break handling
-- Blue section headers
-
-**DOCX Generation Features:**
-- Microsoft Word compatible
-- Styled headings and sections
-- Proper spacing and alignment
-- Editable output format
-
-### 4. Session State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> WAITING_CV: /start
-    WAITING_CV --> WAITING_JD: CV uploaded
-    WAITING_CV --> WAITING_CV: Invalid file
-    
-    WAITING_JD --> PROCESSING: JD received
-    WAITING_JD --> WAITING_JD: Invalid JD
-    
-    PROCESSING --> WAITING_ACTION_CHOICE: Analysis complete
-    PROCESSING --> WAITING_JD: Analysis failed
-    
-    WAITING_ACTION_CHOICE --> [*]: action_none (Done)
-    WAITING_ACTION_CHOICE --> [*]: action_improve (Generate CV)
-    WAITING_ACTION_CHOICE --> [*]: action_cover (Generate Letter)
-    WAITING_ACTION_CHOICE --> [*]: action_both (Generate Both)
-    
-    WAITING_CV --> [*]: /cancel
-    WAITING_JD --> [*]: /cancel
-    WAITING_ACTION_CHOICE --> [*]: /cancel
+```
+1️⃣ APILayer (Primary)
+   │
+   ▼ (on failure)
+2️⃣ CVParser (Secondary)
+   │
+   ▼ (on failure)
+3️⃣ UseResume (Tertiary)
+   │
+   ▼ (on failure)
+4️⃣ AI Extraction (OpenRouter/Gemini)
+   │
+   ▼ (on failure)
+5️⃣ Raw Text Only (Final fallback)
 ```
 
-### 5. MongoDB Workflow Persistence
+### Key Rotation
 
-```javascript
-// Every stage is logged to MongoDB
-{
-  userId: "123456789",
-  stage: "analysis_complete",
-  timestamp: "2024-01-15T10:30:00Z",
-  metadata: {
-    score: 72,
-    scoreSource: "openrouter_gemini",
-    parserSource: "apilayer",
-    fileName: "resume.pdf"
-  }
-}
-```
+Each provider uses **round-robin key rotation** with **circuit breaker** pattern:
 
-**Use Cases:**
-- Analytics and monitoring
-- Debugging user issues
-- Usage statistics
-- Session recovery
+- **Circuit opens** after 5 consecutive failures
+- **Recovery timeout**: 60 seconds
+- **Half-open testing**: 2 consecutive successes to close
 
 ---
 
-## 📊 Performance Metrics
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Performance Benchmarks                  │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ⏱️ Response Times                                          │
-│  ├── CV Upload & Parse:        ~2-5 seconds               │
-│  ├── Text Extraction:           ~1-3 seconds              │
-│  ├── AI Analysis:                ~10-30 seconds           │
-│  ├── Document Generation:        ~3-8 seconds               │
-│  └── Total Flow:                 ~30-60 seconds           │
-│                                                             │
-│  🎯 Success Rates                                             │
-│  ├── Text Extraction:           ~95%                       │
-│  ├── Resume Parsing:            ~90% (with fallback)       │
-│  ├── AI Scoring:                ~98% (with fallback)       │
-│  └── Document Generation:       ~99%                       │
-│                                                             │
-│  🔑 API Key Health                                            │
-│  ├── Keys Monitored:            18+ across providers      │
-│  ├── Auto-Rotation:             Enabled                   │
-│  └── Failover Time:             <1 second                 │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🔒 Security Considerations
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Security Features                         │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  🔐 API Key Management                                        │
-│  ├── Keys stored in environment variables                   │
-│  ├── Never committed to repository                        │
-│  ├── Rotation prevents single key exhaustion                │
-│  └── Disabled keys tracked per-session                      │
-│                                                             │
-│  🛡️ Data Handling                                             │
-│  ├── CV data processed in-memory only                       │
-│  ├── No persistent CV storage (unless MongoDB enabled)      │
-│  ├── Sessions auto-expire                                   │
-│  └── File downloads use Telegram secure links               │
-│                                                             │
-│  📝 Input Validation                                          │
-│  ├── File type whitelist (PDF, DOCX, images)              │
-│  ├── File size limits via Telegram                          │
-│  └── Text length validation                                  │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🛠️ Development & Debugging
-
-### Debug Mode
-
-```bash
-# Enable debug logging
-DEBUG=cv-analyzer:* npm start
-
-# Or set in .env
-DEBUG=true
-```
+## 🛠️ Troubleshooting
 
 ### Common Issues
 
 | Issue | Solution |
 |-------|----------|
-| "All AI providers failed" | Check API keys in .env |
-| "Session expired" | User took too long, send /start again |
+| "All AI providers failed" | Check API keys in .env, verify credits |
+| "Session expired" | User took too long (>1 hour), send /start again |
 | PDF not parsing | Try image format or check if scanned PDF |
-| MongoDB connection error | Check MONGODB_URL in .env |
+| MongoDB connection error | Check MONGODB_URL format and network access |
+| Bot not responding | Check TELEGRAM_BOT_TOKEN, verify webhook/polling mode |
 
-### Logs Location
+### Debug Mode
 
 ```bash
-# View logs in real-time
-npm start 2>&1 | tee bot.log
+# Enable verbose logging
+DEBUG=cv-analyzer:* npm start
 
-# Filter specific components
-grep "\[CVController\]" bot.log
-grep "\[APIKeyRotation\]" bot.log
-grep "\[AI\]" bot.log
+# Or check logs directly
+tail -f logs/bot.log
 ```
+
+### Bot Logs
+
+```
+✅ HTTP server listening on port 3000
+📡 Bot is running with long polling...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CV Analyzer Pro is running!
+🎯 Listening for messages...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## 🔒 Security
+
+- **API Keys**: Stored in environment variables, never committed
+- **Data Handling**: CV data processed in-memory, no persistent storage
+- **Session Expiry**: Auto-cleanup after 1 hour
+- **Input Validation**: File type whitelist, size limits
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please:
 
-```bash
-# Fork and clone
-git clone https://github.com/yourusername/cv-analyzer-bot.git
-
-# Create feature branch
-git checkout -b feature/amazing-feature
-
-# Commit changes
-git commit -m "Add amazing feature"
-
-# Push to branch
-git push origin feature/amazing-feature
-
-# Open Pull Request
-```
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m "Add amazing feature"`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
 ## 📜 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -888,9 +527,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <div align="center">
-
+### Made By Sachin Rao
 ### Made with ❤️ for Job Seekers Worldwide
 
-**[⬆ Back to Top](#-cv-analyzer-bot)**
+**[⬆ Back to Top](#-cv-analyzer-pro)**
 
 </div>

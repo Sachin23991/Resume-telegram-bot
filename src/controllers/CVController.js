@@ -1,5 +1,5 @@
 import { UserState, UserSessionStore } from '../models/index.js';
-import { aiService, cvExtractorService, useResumeService, cvParserService, workflowStoreService, apiLayerService, affindaService, resumeScoreService, documentGeneratorService, resumeTemplateService, resumeRendererService } from '../services/index.js';
+import { aiService, cvExtractorService, useResumeService, cvParserService, workflowStoreService, apiLayerService, documentGeneratorService, resumeTemplateService, resumeRendererService } from '../services/index.js';
 import { telegramView } from '../views/index.js';
 
 export class CVController {
@@ -314,13 +314,22 @@ export class CVController {
         ...suggestionData,
         score: 0,
         matchPercentage: 0,
+        confidence: 0,
+        scoreReason: '',
+        keywordMatch: 0,
+        contentQuality: 0,
+        atsScore: 0,
+        structureScore: 0,
+        matchedRequirements: [],
+        missingRequirements: [],
+        criticalErrors: [],
+        topFixes: [],
         missingKeywords: [],
       };
 
       // 3. Get score - ALWAYS use FULL TEXT for scoring (not section-wise).
-      // Priority requested: OpenRouter/Gemini AI first, then external score APIs as backups.
+      // Priority requested: OpenRouter/Gemini AI first, then default fallback if both fail.
       let scoreSource = 'openrouter_gemini';
-      let apiScore = null;
       const scoringResumeData =
         session.cv.resumeData ||
         resumeTemplateService.buildResumeData(
@@ -339,76 +348,38 @@ export class CVController {
         const scoreResult = await aiService.scoreWithParsedData(scorePayload, jd);
         analysis.score = scoreResult.score;
         analysis.matchPercentage = scoreResult.matchPercentage;
+        analysis.confidence = scoreResult.confidence ?? 0;
+        analysis.scoreReason = scoreResult.scoreReason || '';
+        analysis.keywordMatch = scoreResult.keywordMatch ?? analysis.keywordMatch ?? 0;
+        analysis.contentQuality = scoreResult.contentQuality ?? analysis.contentQuality ?? 0;
+        analysis.atsScore = scoreResult.atsScore ?? analysis.atsScore ?? 0;
+        analysis.structureScore = scoreResult.structureScore ?? analysis.structureScore ?? 0;
+        analysis.matchedRequirements = scoreResult.matchedRequirements || [];
+        analysis.missingRequirements = scoreResult.missingRequirements || [];
+        analysis.criticalErrors = scoreResult.criticalErrors || [];
+        analysis.topFixes = scoreResult.topFixes || [];
         analysis.missingKeywords = scoreResult.missingKeywords || [];
         if (scoreResult.strengths?.length > 0) analysis.strengths = scoreResult.strengths;
         if (scoreResult.weaknesses?.length > 0) analysis.weaknesses = scoreResult.weaknesses;
         if (scoreResult.improvementSuggestions?.length > 0) analysis.improvementSuggestions = scoreResult.improvementSuggestions;
         console.log(`[CVController] AI scoring succeeded with score: ${analysis.score}`);
       } catch (aiScoreError) {
-        console.log('[CVController] AI scoring failed, trying dedicated resume score API:', aiScoreError.message);
-
-        // Backup 1: Dedicated resume score API with the original uploaded file.
-        try {
-          const scoreResult = await resumeScoreService.getScore(session.cv.bytes, jd, session.cv.fileName);
-          apiScore = scoreResult.score;
-          analysis.score = scoreResult.score;
-          analysis.matchPercentage = scoreResult.score;
-          analysis.missingKeywords = [];
-          scoreSource = 'resume_score_api';
-          console.log(`[CVController] Resume score API backup score: ${analysis.score}`);
-        } catch (scoreApiError) {
-          console.log('[CVController] Dedicated score API failed, trying Affinda parsed-data backup:', scoreApiError.message);
-
-          try {
-            // Backup 2: Affinda parsed data + AI scoring.
-            console.log('[CVController] Trying Affinda...');
-            const affindaResult = await affindaService.getScore(session.cv.bytes, jd, session.cv.fileName);
-
-            if (affindaResult.needsAIScoring || affindaResult.score === null) {
-              const combinedInput = `${session.cv.text}\n\n[Structured Data]\n${JSON.stringify(affindaResult.parsedData, null, 2)}`;
-              const scoreResult = await aiService.scoreWithParsedData(combinedInput, jd);
-              analysis.score = scoreResult.score;
-              analysis.matchPercentage = scoreResult.matchPercentage;
-              analysis.missingKeywords = scoreResult.missingKeywords || [];
-            } else {
-              analysis.score = affindaResult.score;
-              analysis.matchPercentage = affindaResult.score;
-            }
-
-            if (affindaResult.parsedData && !session.cv.parsedData) {
-              session.cv.parsedData = affindaResult.parsedData;
-            }
-            if (affindaResult.parsedData) {
-              session.cv.resumeData = resumeTemplateService.buildResumeData(
-                affindaResult.parsedData,
-                session.cv.text
-              );
-            }
-            scoreSource = 'affinda_ai_fallback';
-            console.log(`[CVController] Affinda backup score: ${analysis.score}`);
-          } catch (affindaError) {
-            console.log('[CVController] All scoring methods failed:', affindaError.message);
-            analysis.score = 50;
-            analysis.matchPercentage = 50;
-            scoreSource = 'default';
-          }
-        }
+        console.log('[CVController] AI scoring failed, using default score fallback:', aiScoreError.message);
+        analysis.score = 50;
+        analysis.matchPercentage = 50;
+        scoreSource = 'default';
       }
 
       // Determine suggestion source based on which scoring path produced the result
       let suggestionSource = 'openrouter_gemini';
-      if (scoreSource === 'affinda_ai_fallback') {
-        suggestionSource = 'affinda_ai_fallback';
-      } else if (scoreSource === 'resume_score_api') {
-        suggestionSource = 'resume_score_api';
-      } else if (scoreSource === 'openrouter_gemini') {
+      if (scoreSource === 'openrouter_gemini') {
         suggestionSource = 'openrouter_gemini';
       }
 
       // Store results
       analysis.scoreSource = scoreSource;
       analysis.suggestionSource = suggestionSource;
-      analysis.apiScoreUsed = apiScore !== null;
+      analysis.apiScoreUsed = false;
 
       // Store results
       session.cv.structure = structure;
@@ -423,7 +394,7 @@ export class CVController {
       });
 
       // Send analysis
-      await telegramView.analysisResults(ctx, analysis, apiScore);
+      await telegramView.analysisResults(ctx, analysis);
 
       await telegramView.askImproveCV(ctx);
 
@@ -462,7 +433,7 @@ export class CVController {
       return UserState.WAITING_CV;
     }
 
-    if (!['action_improve', 'action_cover', 'action_both'].includes(choice)) {
+    if (!['action_improve', 'action_cover', 'action_both', 'action_report'].includes(choice)) {
       return UserState.WAITING_ACTION_CHOICE;
     }
 
@@ -476,6 +447,8 @@ export class CVController {
         await this.handleGenerateCoverLetter(ctx, cv.bytes, jobDescription, session);
       } else if (choice === 'action_both') {
         await this.handleGenerateBoth(ctx, cv.bytes, jobDescription, structure, analysis, session);
+      } else if (choice === 'action_report') {
+        await this.handleDetailedReport(ctx, analysis, session);
       }
     } catch (error) {
       console.error('Action error:', error);
@@ -636,6 +609,69 @@ export class CVController {
       console.log('[Controller] Both generation failed:', e.message);
       await telegramView.actionError(ctx, 'Failed to generate documents: ' + e.message);
     }
+  }
+
+  async handleDetailedReport(ctx, analysis, session) {
+    await telegramView.generatingReport(ctx);
+
+    const reportLines = [];
+    reportLines.push('📊 Detailed Analysis Report');
+    reportLines.push('');
+    reportLines.push(`Score: ${analysis.score ?? 0}/100`);
+    reportLines.push(`Confidence: ${analysis.confidence ?? 0}/100`);
+    reportLines.push(`Why: ${analysis.scoreReason || 'No score reason was returned.'}`);
+    reportLines.push('');
+    reportLines.push(`Keyword Match: ${analysis.keywordMatch ?? 0}%`);
+    reportLines.push(`Content Quality: ${analysis.contentQuality ?? 0}%`);
+    reportLines.push(`ATS Compatibility: ${analysis.atsScore ?? 0}%`);
+    reportLines.push(`Structure & Format: ${analysis.structureScore ?? 0}%`);
+    reportLines.push('');
+
+    reportLines.push('ATS Weight Breakdown:');
+    reportLines.push('1. Work Experience = 30%');
+    reportLines.push('2. Skills & Keywords = 20%');
+    reportLines.push('3. Formatting / Parsing = 15%');
+    reportLines.push('4. Contact Info = 10%');
+    reportLines.push('5. Summary = 10%');
+    reportLines.push('6. Education = 10%');
+    reportLines.push('7. Language Quality = 5%');
+    reportLines.push('');
+
+    if (analysis.matchedRequirements?.length) {
+      reportLines.push('Matched Requirements:');
+      analysis.matchedRequirements.slice(0, 5).forEach((item, index) => reportLines.push(`${index + 1}. ${item}`));
+      reportLines.push('');
+    }
+
+    if (analysis.missingRequirements?.length) {
+      reportLines.push('Missing Requirements:');
+      analysis.missingRequirements.slice(0, 5).forEach((item, index) => reportLines.push(`${index + 1}. ${item}`));
+      reportLines.push('');
+    }
+
+    if (analysis.criticalErrors?.length) {
+      reportLines.push('Critical Errors:');
+      analysis.criticalErrors.slice(0, 5).forEach((item, index) => reportLines.push(`${index + 1}. ${item}`));
+      reportLines.push('');
+    }
+
+    if (analysis.topFixes?.length) {
+      reportLines.push('Top Fixes:');
+      analysis.topFixes.slice(0, 5).forEach((item, index) => reportLines.push(`${index + 1}. ${item}`));
+      reportLines.push('');
+    }
+
+    if (analysis.improvementSuggestions?.length) {
+      reportLines.push('Priority Improvements:');
+      analysis.improvementSuggestions.slice(0, 5).forEach((item, index) => {
+        const section = item.section || 'General';
+        const suggestion = item.suggested || item.change || '';
+        reportLines.push(`${index + 1}. [${section}] ${suggestion}`);
+      });
+    }
+
+    await telegramView.reportComplete(ctx, reportLines.join('\n'));
+    session.setState(UserState.WAITING_ACTION_CHOICE);
   }
 
   extractCoverLetterContent(data) {

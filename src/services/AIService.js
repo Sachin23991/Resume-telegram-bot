@@ -1,3 +1,7 @@
+import { readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import config from '../config/index.js';
 import { apiKeyRotationService } from './APIKeyRotationService.js';
 import { resumeTemplateService } from './ResumeTemplateService.js';
@@ -5,11 +9,26 @@ import { resumeTemplateService } from './ResumeTemplateService.js';
 // AI API URLs
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const RESUME_SCORE_SYSTEM_PROMPT_PATH = resolve(__dirname, '../prompts/resume-score-system-prompt.md');
 
 export class AIService {
   constructor() {
     this.geminiKey = config.geminiApiKey;
     this.openaiKey = config.openaiApiKey;
+    this.resumeScoreSystemPromptPromise = null;
+  }
+
+  async getResumeScoreSystemPrompt() {
+    if (!this.resumeScoreSystemPromptPromise) {
+      this.resumeScoreSystemPromptPromise = readFile(RESUME_SCORE_SYSTEM_PROMPT_PATH, 'utf8').catch((error) => {
+        console.error('[AI] Failed to load resume score system prompt:', error.message);
+        throw error;
+      });
+    }
+
+    return this.resumeScoreSystemPromptPromise;
   }
 
   // ============ STRUCTURE EXTRACTION ============
@@ -39,29 +58,19 @@ Return ONLY valid JSON. CV TEXT:\n${cvText.slice(0, 8000)}`;
 
   // ============ CV ANALYSIS ============
   async analyzeCV(cvText, jobDescription) {
-    const prompt = `You are an expert HR recruiter. Analyze this CV against the job description.
-
-Return ONLY valid JSON:
-{
-  "score": <0-100>,
-  "matchPercentage": <0-100>,
-  "missingKeywords": ["keyword1", ...],
-  "strengths": ["strength1", ...],
-  "weaknesses": ["weakness1", ...],
-  "improvementSuggestions": [{"section": "...", "current": "...", "suggested": "...", "reason": "..."}],
-  "sectionScores": {"Section Name": {"score": 0-100, "notes": "..."}}
-}
+    const systemPrompt = await this.getResumeScoreSystemPrompt();
+    const prompt = `Analyze the resume and job description below. Return ONLY valid JSON using the required scoring schema.
 
 CV TEXT:\n${cvText.slice(0, 8000)}
 JOB DESCRIPTION:\n${jobDescription.slice(0, 4000)}`;
 
     try {
-      const result = await this.callOpenRouter(prompt);
+      const result = await this.callOpenRouter(prompt, 4096, systemPrompt);
       return this.parseJSON(result) || this.getDefaultAnalysis();
     } catch (e1) {
       console.log('[AI] OpenRouter failed for analysis, trying Gemini:', e1.message);
       try {
-        const result = await this.callGemini(prompt);
+        const result = await this.callGemini(prompt, { systemPrompt, responseMimeType: 'application/json' });
         return this.parseJSON(result) || this.getDefaultAnalysis();
       } catch (e2) {
         console.log('[AI] Gemini failed for analysis');
@@ -130,16 +139,23 @@ JOB DESCRIPTION:\n${jobDescription.slice(0, 3000)}`;
 
   // ============ API CALLS ============
 
-  async callGemini(prompt) {
+  async callGemini(prompt, options = {}) {
     if (!this.geminiKey) throw new Error('No Gemini API key');
+    const { systemPrompt = null, responseMimeType = 'text/plain' } = options;
+
+    const body = {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType },
+    };
+
+    if (systemPrompt) {
+      body.systemInstruction = { parts: [{ text: systemPrompt }] };
+    }
 
     const response = await fetch(`${GEMINI_URL}?key=${this.geminiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'text/plain' },
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) throw new Error(`Gemini error: ${response.status}`);
@@ -148,8 +164,12 @@ JOB DESCRIPTION:\n${jobDescription.slice(0, 3000)}`;
     return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   }
 
-  async callOpenRouter(prompt, maxTokens = 4096) {
-    const messages = [{ role: 'user', content: prompt }];
+  async callOpenRouter(prompt, maxTokens = 4096, systemPrompt = null) {
+    const messages = [];
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({ role: 'user', content: prompt });
     return apiKeyRotationService.callWithRotation('openai/gpt-4o-mini', messages, maxTokens, 3);
   }
 
@@ -214,6 +234,16 @@ JOB DESCRIPTION:\n${jobDescription.slice(0, 3000)}`;
     return {
       score: 0,
       matchPercentage: 0,
+      confidence: 0,
+      scoreReason: '',
+      keywordMatch: 0,
+      contentQuality: 0,
+      atsScore: 0,
+      structureScore: 0,
+      matchedRequirements: [],
+      missingRequirements: [],
+      criticalErrors: [],
+      topFixes: [],
       missingKeywords: [],
       strengths: [],
       weaknesses: ['Could not analyze CV - all AI providers failed'],
@@ -287,26 +317,13 @@ JOB DESCRIPTION:\n${jobDescription.slice(0, 5000)}`;
   }
 
   async suggestionsWithGemini(cvText, jobDescription) {
-    const prompt = `You are an expert HR recruiter. Analyze the FULL resume end-to-end and return resume IMPROVEMENT SUGGESTIONS only.
-
-  Important:
-  - Do not suggest sections that already exist in the resume.
-  - Do not repeat strengths or content that is already present.
-  - Do not focus on a single section; review the entire resume before making suggestions.
-  - Only suggest missing or weak areas that are relevant to the job description.
-
-Return ONLY valid JSON:
-{
-  "strengths": ["strength1", ...],
-  "weaknesses": ["weakness1", ...],
-  "improvementSuggestions": [{"section": "...", "current": "...", "suggested": "...", "reason": "..."}],
-  "sectionScores": {"Section Name": {"score": 0-100, "notes": "..."}}
-}
+    const systemPrompt = await this.getResumeScoreSystemPrompt();
+    const prompt = `Review the full resume end-to-end and return ONLY valid JSON with strengths, weaknesses, improvement suggestions, and section scores.
 
 CV TEXT:\n${cvText.slice(0, 8000)}
 JOB DESCRIPTION:\n${jobDescription.slice(0, 4000)}`;
 
-    const parsed = await this.callJSONWithProviders(prompt, ['openrouter', 'gemini']);
+    const parsed = await this.callJSONWithProviders(prompt, ['openrouter', 'gemini'], systemPrompt);
 
     if (!parsed) {
       throw new Error('AI providers did not return valid suggestions JSON');
@@ -391,22 +408,8 @@ ${jobDescription.slice(0, 5000)}`;
 
   // Score resume against job description using parsed data
   async scoreWithParsedData(parsedResume, jobDescription) {
-    const prompt = `You are an expert HR recruiter. Score this FULL parsed resume against the job description.
-
-Important:
-- Evaluate the entire resume, not one section.
-- Do not suggest adding sections that already exist.
-- If a skill or detail already exists anywhere in the resume, do not count it as missing.
-
-Return ONLY valid JSON:
-{
-  "score": <0-100>,
-  "matchPercentage": <0-100>,
-  "missingKeywords": ["keyword1", "keyword2"],
-  "strengths": ["strength1", "strength2"],
-  "weaknesses": ["weakness1", "weakness2"],
-  "improvementSuggestions": [{"section": "...", "suggested": "...", "reason": "..."}]
-}
+    const systemPrompt = await this.getResumeScoreSystemPrompt();
+    const prompt = `Score the parsed resume against the job description and return ONLY valid JSON.
 
 PARSED RESUME DATA:
 ${JSON.stringify(parsedResume, null, 2)}
@@ -415,7 +418,7 @@ JOB DESCRIPTION:
 ${jobDescription.slice(0, 5000)}`;
 
     try {
-      const parsed = await this.callJSONWithProviders(prompt, ['openrouter', 'gemini']);
+      const parsed = await this.callJSONWithProviders(prompt, ['openrouter', 'gemini'], systemPrompt);
 
       if (!parsed || typeof parsed.score !== 'number') {
         throw new Error('AI providers did not return a valid score JSON');
@@ -426,10 +429,21 @@ ${jobDescription.slice(0, 5000)}`;
         matchPercentage: typeof parsed.matchPercentage === 'number'
           ? Math.max(0, Math.min(100, Math.round(parsed.matchPercentage)))
           : Math.max(0, Math.min(100, Math.round(parsed.score))),
+        confidence: typeof parsed.confidence === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.confidence))) : 0,
+        scoreReason: typeof parsed.scoreReason === 'string' ? parsed.scoreReason : '',
+        keywordMatch: typeof parsed.keywordMatch === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.keywordMatch))) : 0,
+        contentQuality: typeof parsed.contentQuality === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.contentQuality))) : 0,
+        atsScore: typeof parsed.atsScore === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.atsScore))) : 0,
+        structureScore: typeof parsed.structureScore === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.structureScore))) : 0,
+        matchedRequirements: Array.isArray(parsed.matchedRequirements) ? parsed.matchedRequirements : [],
+        missingRequirements: Array.isArray(parsed.missingRequirements) ? parsed.missingRequirements : [],
+        criticalErrors: Array.isArray(parsed.criticalErrors) ? parsed.criticalErrors : [],
+        topFixes: Array.isArray(parsed.topFixes) ? parsed.topFixes : [],
         missingKeywords: Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords : [],
         strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
         weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
         improvementSuggestions: Array.isArray(parsed.improvementSuggestions) ? parsed.improvementSuggestions : [],
+        sectionScores: parsed.sectionScores || {},
       };
     } catch (e) {
       console.log('[AI] All AI scoring providers failed:', e.message);
@@ -437,13 +451,13 @@ ${jobDescription.slice(0, 5000)}`;
     }
   }
 
-  async callJSONWithProviders(prompt, providers = ['openrouter', 'gemini']) {
+  async callJSONWithProviders(prompt, providers = ['openrouter', 'gemini'], systemPrompt = null) {
     let lastError = null;
 
     for (const provider of providers) {
       try {
         console.log(`[AI] Trying ${provider} JSON response...`);
-        const result = await this.callProvider(provider, prompt);
+        const result = await this.callProvider(provider, prompt, 4096, systemPrompt);
         const parsed = this.parseJSON(result);
         if (parsed) return parsed;
         lastError = new Error(`${provider} returned invalid JSON`);
@@ -457,9 +471,9 @@ ${jobDescription.slice(0, 5000)}`;
     throw new Error(`All AI providers failed. Last error: ${lastError?.message}`);
   }
 
-  async callProvider(provider, prompt, maxTokens = 4096) {
-    if (provider === 'gemini') return this.callGemini(prompt);
-    if (provider === 'openrouter') return this.callOpenRouter(prompt, maxTokens);
+  async callProvider(provider, prompt, maxTokens = 4096, systemPrompt = null) {
+    if (provider === 'gemini') return this.callGemini(prompt, { systemPrompt });
+    if (provider === 'openrouter') return this.callOpenRouter(prompt, maxTokens, systemPrompt);
     if (provider === 'openai') return this.callOpenAI(prompt, maxTokens);
     throw new Error(`Unknown AI provider: ${provider}`);
   }

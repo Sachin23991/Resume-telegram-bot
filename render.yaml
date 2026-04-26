@@ -35,22 +35,6 @@ services:
         sync: false
       - key: APILAYER_KEY_4
         sync: false
-      - key: AFFINDA_KEY_1
-        sync: false
-      - key: AFFINDA_KEY_2
-        sync: false
-      - key: AFFINDA_KEY_3
-        sync: false
-      - key: AFFINDA_KEY_4
-        sync: false
-      - key: RESUME_SCORE_KEY_1
-        sync: false
-      - key: RESUME_SCORE_KEY_2
-        sync: false
-      - key: RESUME_SCORE_KEY_3
-        sync: false
-      - key: RESUME_SCORE_KEY_4
-        sync: false
       - key: USERESUME_KEY_1
         sync: false
       - key: USERESUME_KEY_2

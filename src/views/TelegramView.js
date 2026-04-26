@@ -1,4 +1,18 @@
 export class TelegramView {
+  // Helper to escape markdown characters
+  escapeMarkdown(text) {
+    if (!text) return '';
+    return text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
+  }
+
+  // Keep dynamic previews short and readable.
+  truncateText(text, maxLength = 100) {
+    const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return 'N/A';
+    if (normalized.length <= maxLength) return normalized;
+    return `${normalized.slice(0, maxLength - 1)}...`;
+  }
+
   // Helper method to split long messages for Telegram (max 4096 chars per message)
   splitMessage(text, maxLength = 4000) {
     if (!text || typeof text !== 'string') {
@@ -241,41 +255,82 @@ _Please wait, don't send new messages_`,
     return ctx.reply(`❌ *Error:* ${message}\n\n_Try /start to begin again or /help for assistance_`, { parse_mode: 'Markdown' });
   }
 
-  analysisResults(ctx, analysis, apiScore) {
+  analysisResults(ctx, analysis) {
     if (analysis.error) {
       return ctx.reply(`❌ Analysis Error: ${analysis.error}`);
     }
 
-    const score = apiScore ?? analysis.score;
-    const scoreSource = analysis.scoreSource || (apiScore !== null ? 'Resume Match API' : 'AI Analysis');
+    const score = analysis.score ?? 0;
+    const scoreSource = analysis.scoreSource || 'AI Analysis';
     const parserSource = analysis.parserSource || 'Unknown';
 
     // Build comprehensive response
     const scoreBar = this.formatScore(score);
     const scoreLabel = this.getScoreEmoji(score);
 
-    let response = `📊 *COMPREHENSIVE ANALYSIS RESULTS*\n\n`;
+    let response = `📊 COMPREHENSIVE ANALYSIS RESULTS\n\n`;
 
     // Score display
-    response += `*Your Match Score:*\n`;
+    response += `Your Match Score:\n`;
     response += `${scoreBar} ${score}/100\n`;
     response += `${scoreLabel}\n\n`;
 
     // Scoring breakdown (industry standard criteria)
-    response += `*📋 Scoring Breakdown (Top Resume Analyzer Standards):*\n`;
-    response += `├─ Keyword Match: ${analysis.keywordMatch || 'N/A'}%\n`;
-    response += `├─ Content Quality: ${analysis.contentQuality || 'N/A'}%\n`;
-    response += `├─ ATS Compatibility: ${analysis.atsScore || 'N/A'}%\n`;
-    response += `└─ Structure & Format: ${analysis.structureScore || 'N/A'}%\n\n`;
+    response += `📋 Scoring Breakdown (Top Resume Analyzer Standards):\n`;
+    response += `├─ Keyword Match: ${analysis.keywordMatch ?? 'N/A'}%\n`;
+    response += `├─ Content Quality: ${analysis.contentQuality ?? 'N/A'}%\n`;
+    response += `├─ ATS Compatibility: ${analysis.atsScore ?? 'N/A'}%\n`;
+    response += `└─ Structure & Format: ${analysis.structureScore ?? 'N/A'}%\n\n`;
 
     // Data sources
-    response += `*🔧 Data Sources:*\n`;
+    response += `🔧 Data Sources:\n`;
     response += `├─ Parser: ${parserSource}\n`;
     response += `└─ Analysis: ${scoreSource}\n\n`;
 
+    if (analysis.scoreReason) {
+      response += `🧠 Why this score:\n`;
+      response += `${analysis.scoreReason}\n\n`;
+    }
+
+    if (analysis.confidence !== undefined) {
+      response += `📍 Confidence: ${analysis.confidence}/100\n\n`;
+    }
+
+    if (analysis.matchedRequirements && analysis.matchedRequirements.length > 0) {
+      response += `✅ Matched Requirements:\n`;
+      analysis.matchedRequirements.slice(0, 5).forEach((item, i) => {
+        response += `${i + 1}. ${item}\n`;
+      });
+      response += `\n`;
+    }
+
+    if (analysis.missingRequirements && analysis.missingRequirements.length > 0) {
+      response += `⚠️ Missing Requirements:\n`;
+      analysis.missingRequirements.slice(0, 5).forEach((item, i) => {
+        response += `${i + 1}. ${item}\n`;
+      });
+      response += `\n`;
+    }
+
+    if (analysis.criticalErrors && analysis.criticalErrors.length > 0) {
+      response += `❗ Critical Errors:\n`;
+      analysis.criticalErrors.slice(0, 5).forEach((item, i) => {
+        response += `${i + 1}. ${item}\n`;
+      });
+      response += `\n`;
+    }
+
+    if (analysis.topFixes && analysis.topFixes.length > 0) {
+      response += `🛠️ Top Fixes:\n`;
+      analysis.topFixes.slice(0, 5).forEach((item, i) => {
+        response += `${i + 1}. ${item}\n`;
+      });
+      response += `\n`;
+    }
+
     // Strengths
     if (analysis.strengths && analysis.strengths.length > 0) {
-      response += `✅ *Your Strengths:*\n`;
+      response += `✅ Your Strengths:\n`;
       analysis.strengths.slice(0, 5).forEach((s, i) => {
         response += `${i + 1}. ${s}\n`;
       });
@@ -284,13 +339,13 @@ _Please wait, don't send new messages_`,
 
     // Missing keywords
     if (analysis.missingKeywords && analysis.missingKeywords.length > 0) {
-      response += `❌ *Missing Keywords:*\n`;
+      response += `❌ Missing Keywords:\n`;
       response += analysis.missingKeywords.slice(0, 10).join(', ') + `\n\n`;
     }
 
     // Key improvements
     if (analysis.improvementSuggestions && analysis.improvementSuggestions.length > 0) {
-      response += `💡 *Priority Improvements:*\n`;
+      response += `💡 Priority Improvements:\n`;
       analysis.improvementSuggestions.slice(0, 3).forEach((s, i) => {
         const section = s.section || 'General';
         const suggestion = (s.suggested || s.change || '').slice(0, 60);
@@ -298,8 +353,8 @@ _Please wait, don't send new messages_`,
       });
     }
 
-    response += `\n_Use /menu for options or continue below_`;
-    return ctx.replyWithMarkdown(response);
+    response += `\nUse /menu for options or continue below`;
+    return ctx.reply(response);
   }
 
   askImproveCV(ctx) {

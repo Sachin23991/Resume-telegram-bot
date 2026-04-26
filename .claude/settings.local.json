@@ -2,7 +2,6 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "WebFetch(domain:api.apyhub.com)",
       "WebFetch(domain:cvparser.com)",
       "WebFetch(domain:cvparser-api.com)",
       "WebFetch(domain:www.cvparser.com)",

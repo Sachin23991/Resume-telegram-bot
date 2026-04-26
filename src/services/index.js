@@ -1,12 +1,10 @@
 export { AIService, aiService } from './AIService.js';
 export { CVExtractorService, cvExtractorService } from './CVExtractorService.js';
-export { ResumeScoreService, resumeScoreService } from './ResumeScoreService.js';
 export { UseResumeService, useResumeService } from './UseResumeService.js';
 export { CVParserService, cvParserService } from './CVParserService.js';
 export { WorkflowStoreService, workflowStoreService } from './WorkflowStoreService.js';
 export { APIKeyRotationService, apiKeyRotationService } from './APIKeyRotationService.js';
 export { APILayerService, apiLayerService } from './APILayerService.js';
-export { AffindaService, affindaService } from './AffindaService.js';
 export { DocumentGeneratorService, documentGeneratorService } from './DocumentGeneratorService.js';
 export { ResumeTemplateService, resumeTemplateService } from './ResumeTemplateService.js';
 export { ResumeRendererService, resumeRendererService } from './ResumeRendererService.js';

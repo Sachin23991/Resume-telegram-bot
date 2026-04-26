@@ -31,22 +31,6 @@ export default {
     process.env.APILAYER_KEY_4,
   ].filter(Boolean),
 
-  // Affinda API Keys (4 keys) - for resume matching/scoring
-  affindaKeys: [
-    process.env.AFFINDA_KEY_1,
-    process.env.AFFINDA_KEY_2,
-    process.env.AFFINDA_KEY_3,
-    process.env.AFFINDA_KEY_4,
-  ].filter(Boolean),
-
-  // Resume Score API Keys (ApyHub - 4 keys with fallback) - backup
-  resumeScoreKeys: [
-    process.env.RESUME_SCORE_KEY_1,
-    process.env.RESUME_SCORE_KEY_2,
-    process.env.RESUME_SCORE_KEY_3,
-    process.env.RESUME_SCORE_KEY_4,
-  ].filter(Boolean),
-
   // UseResume API Keys (3 keys with fallback)
   useResumeKeys: [
     process.env.USERESUME_KEY_1,
