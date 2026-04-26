@@ -524,7 +524,7 @@ export class CVController {
     await telegramView.generatingCoverLetter(ctx);
 
     try {
-      const coverLetter = await aiService.generateCoverLetterWithOpenAI(
+      const coverLetter = await aiService.generateCoverLetterWithOpenRouter(
         session.cv.text,
         jobDescription
       );
@@ -594,7 +594,7 @@ export class CVController {
       const resumeDoc = await this.generateLocalImprovedResume(jobDescription, structure, analysis, session);
 
       // Generate cover letter
-      const coverLetter = await aiService.generateCoverLetterWithOpenAI(session.cv.text, jobDescription);
+      const coverLetter = await aiService.generateCoverLetterWithOpenRouter(session.cv.text, jobDescription);
       const coverDoc = await documentGeneratorService.generateDocument(
         coverLetter,
         'application/pdf',
@@ -701,9 +701,9 @@ export class CVController {
   async tryAIThenUseResume(type, cvBuffer, jobDescription, structure, analysis, session) {
     try {
       if (type === 'resume') {
-        return await aiService.rewriteCVWithOpenAI(session.cv.text, jobDescription, structure, analysis);
+        return await aiService.rewriteCVWithOpenRouter(session.cv.text, jobDescription, structure, analysis);
       } else {
-        return await aiService.generateCoverLetterWithOpenAI(session.cv.text, jobDescription);
+        return await aiService.generateCoverLetterWithOpenRouter(session.cv.text, jobDescription);
       }
     } catch (e) {
       console.log(`[Controller] AI ${type} failed, trying UseResume`);

@@ -42,7 +42,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  🚀 Multi-Provider AI Architecture                              │
-│     └── OpenRouter (GPT-4o-mini) → Gemini → OpenAI Fallback    │
+│     └── OpenRouter (Gemini 2.5 Flash) → Gemini                  │
 │                                                                 │
 │  🔁 Intelligent API Key Rotation                               │
 │     └── 4+ keys per provider with automatic failover           │
@@ -170,14 +170,11 @@ OPENROUTER_KEY_1=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_2=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_3=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_FALLBACK=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
+OPENROUTER_MODEL=google/gemini-2.5-flash
 
 # Google Gemini (Secondary Provider)
 # Get from: https://ai.google.dev/
 GEMINI_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# OpenAI (Tertiary Provider - optional)
-# Get from: https://platform.openai.com/
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 
 # APILayer Resume Parser (4 keys for rotation)
 # Get from: https://apilayer.com/
@@ -205,9 +202,8 @@ USERESUME_KEY_3=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
 
 | Provider | URL | Purpose | Free Tier |
 |----------|-----|---------|-----------|
-| [OpenRouter](https://openrouter.ai/) | `openrouter.ai` | Primary AI (GPT-4o-mini) | ✅ |
+| [OpenRouter](https://openrouter.ai/) | `openrouter.ai` | Primary AI (Gemini 2.5 Flash) | ✅ |
 | [Google Gemini](https://ai.google.dev/) | `makersuite.google.com` | Secondary AI | ✅ |
-| [OpenAI](https://platform.openai.com/) | `platform.openai.com` | Tertiary AI | ❌ |
 | [APILayer](https://apilayer.com/) | `apilayer.com` | Resume parsing | ✅ 50/month |
 | [CVParser](https://cvparser-api.com/) | `cvparser-api.com` | Resume parsing | ✅ Trial |
 | [UseResume](https://useresume.com/) | `useresume.com` | Resume parsing | ✅ Trial |
@@ -414,7 +410,7 @@ Resume-telegram-bot/
 ### AI Provider Chain
 
 ```
-Primary: OpenRouter (GPT-4o-mini)
+Primary: OpenRouter (Gemini 2.5 Flash)
    │
    ├─ KEY_1 → KEY_2 → KEY_3 → FALLBACK_KEY
    │

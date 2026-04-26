@@ -8,7 +8,6 @@ import { resumeTemplateService } from './ResumeTemplateService.js';
 
 // AI API URLs
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const RESUME_SCORE_SYSTEM_PROMPT_PATH = resolve(__dirname, '../prompts/resume-score-system-prompt.md');
@@ -16,7 +15,6 @@ const RESUME_SCORE_SYSTEM_PROMPT_PATH = resolve(__dirname, '../prompts/resume-sc
 export class AIService {
   constructor() {
     this.geminiKey = config.geminiApiKey;
-    this.openaiKey = config.openaiApiKey;
     this.resumeScoreSystemPromptPromise = null;
   }
 
@@ -170,42 +168,7 @@ JOB DESCRIPTION:\n${jobDescription.slice(0, 3000)}`;
       messages.push({ role: 'system', content: systemPrompt });
     }
     messages.push({ role: 'user', content: prompt });
-    return apiKeyRotationService.callWithRotation('openai/gpt-4o-mini', messages, maxTokens, 3);
-  }
-
-  async callOpenAI(prompt, maxTokens = 4096) {
-    if (!config.openaiEnabled || !this.openaiKey) {
-      throw new Error('OpenAI provider disabled or key not configured');
-    }
-
-    const response = await fetch(OPENAI_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens,
-      }),
-    });
-
-    if (!response.ok) {
-      let message = '';
-      try {
-        const error = await response.json();
-        message = error.error?.message || JSON.stringify(error);
-      } catch {
-        message = await response.text();
-      }
-      throw new Error(`OpenAI error: ${response.status} ${message.slice(0, 200)}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error('Empty response from OpenAI');
-    return content;
+    return apiKeyRotationService.callWithRotation(config.openrouterModel, messages, maxTokens, 3);
   }
 
   // ============ HELPERS ============
@@ -337,7 +300,7 @@ JOB DESCRIPTION:\n${jobDescription.slice(0, 4000)}`;
     };
   }
 
-  async rewriteCVWithOpenAI(cvText, jobDescription, structure, analysis) {
+  async rewriteCVWithOpenRouter(cvText, jobDescription, structure, analysis) {
     return this.rewriteCV(cvText, jobDescription, structure, analysis);
   }
 
@@ -402,7 +365,7 @@ ${jobDescription.slice(0, 5000)}`;
     return resumeTemplateService.buildResumeData(parsed, cvText);
   }
 
-  async generateCoverLetterWithOpenAI(cvText, jobDescription) {
+  async generateCoverLetterWithOpenRouter(cvText, jobDescription) {
     return this.generateCoverLetter(cvText, jobDescription);
   }
 
@@ -474,7 +437,6 @@ ${jobDescription.slice(0, 5000)}`;
   async callProvider(provider, prompt, maxTokens = 4096, systemPrompt = null) {
     if (provider === 'gemini') return this.callGemini(prompt, { systemPrompt });
     if (provider === 'openrouter') return this.callOpenRouter(prompt, maxTokens, systemPrompt);
-    if (provider === 'openai') return this.callOpenAI(prompt, maxTokens);
     throw new Error(`Unknown AI provider: ${provider}`);
   }
 }

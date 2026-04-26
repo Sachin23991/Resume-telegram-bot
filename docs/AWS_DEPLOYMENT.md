@@ -78,7 +78,7 @@ Before starting, ensure you have:
 │  External Connections:                                          │
 │  ├──► Telegram API (polling)                                   │
 │  ├──► MongoDB Atlas (database)                                 │
-│  ├──► OpenRouter/Gemini/OpenAI (AI APIs)                       │
+│  ├──► OpenRouter/Gemini (AI APIs)                              │
 │  └──► APILayer/CVParser/UseResume (Parser APIs)                │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -232,8 +232,8 @@ Create `taskdef.json` with your values:
         { "name": "OPENROUTER_KEY_2", "value": "YOUR_OPENROUTER_KEY_2" },
         { "name": "OPENROUTER_KEY_3", "value": "YOUR_OPENROUTER_KEY_3" },
         { "name": "OPENROUTER_KEY_FALLBACK", "value": "YOUR_OPENROUTER_KEY_FALLBACK" },
+        { "name": "OPENROUTER_MODEL", "value": "google/gemini-2.5-flash" },
         { "name": "GEMINI_API_KEY", "value": "YOUR_GEMINI_KEY" },
-        { "name": "OPENAI_API_KEY", "value": "YOUR_OPENAI_KEY" },
         { "name": "APILAYER_KEY_1", "value": "YOUR_APILAYER_KEY_1" },
         { "name": "APILAYER_KEY_2", "value": "YOUR_APILAYER_KEY_2" },
         { "name": "APILAYER_KEY_3", "value": "YOUR_APILAYER_KEY_3" },

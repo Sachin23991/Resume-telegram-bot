@@ -82,7 +82,7 @@ bot.command('info', runHandler(async (ctx) => {
 🤖 Intelligent Resume Analysis System
 
 *Features:*
-• Multi-provider AI scoring (OpenRouter, Gemini, OpenAI)
+• Multi-provider AI scoring (OpenRouter, Gemini)
 • Smart API key rotation with circuit breaker
 • 6+ resume parsers with automatic fallback
 • ATS-compatible scoring standards

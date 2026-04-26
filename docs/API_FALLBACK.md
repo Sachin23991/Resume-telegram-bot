@@ -30,7 +30,7 @@ The bot employs a **defense-in-depth** strategy for API reliability:
 │                                                                 │
 │  Layer 2: AI Provider Fallback                                  │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  OpenRouter → Gemini → OpenAI → Default Score          │   │
+│  │  OpenRouter → Gemini → Default Score                   │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  Layer 3: Parser Fallback                                       │
@@ -57,9 +57,9 @@ The bot employs a **defense-in-depth** strategy for API reliability:
 │                   AI Provider Fallback Chain                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1️⃣ OpenRouter (GPT-4o-mini)                                   │
+│  1️⃣ OpenRouter (Gemini 2.5 Flash)                              │
 │     - Endpoint: https://openrouter.ai/api/v1/chat/completions  │
-│     - Model: openai/gpt-4o-mini                                │
+│     - Model: google/gemini-2.5-flash                           │
 │     - Keys: 3 primary + 1 fallback                             │
 │     - Timeout: 30 seconds                                      │
 │                                                                 │

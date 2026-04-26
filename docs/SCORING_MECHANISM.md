@@ -74,7 +74,7 @@ const scorePayload = `${session.cv.text}\n\n[PARSED_FULL_CV_CONTEXT]\n${JSON.str
 │          AI Provider Fallback Chain         │
 ├─────────────────────────────────────────────┤
 │                                             │
-│  1️⃣ OpenRouter (GPT-4o-mini) - PRIMARY    │
+│  1️⃣ OpenRouter (Gemini 2.5 Flash) - PRIMARY │
 │     │                                       │
 │     ▼ (on failure)                          │
 │  2️⃣ Gemini (gemini-2.5-flash) - SECONDARY │

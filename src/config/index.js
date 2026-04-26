@@ -1,8 +1,5 @@
 import 'dotenv/config';
 
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const openaiEnabled = Boolean(openaiApiKey && !openaiApiKey.startsWith('sk-or-'));
-
 export default {
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
 
@@ -12,8 +9,6 @@ export default {
 
   // AI APIs
   geminiApiKey: process.env.GEMINI_API_KEY,
-  openaiApiKey,
-  openaiEnabled,
 
   // OpenRouter API Keys (rotation + fallback)
   openrouterKeys: [
@@ -22,6 +17,7 @@ export default {
     process.env.OPENROUTER_KEY_3,
   ].filter(Boolean),
   openrouterKeyFallback: process.env.OPENROUTER_KEY_FALLBACK,
+  openrouterModel: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
 
   // APILayer Resume Parser Keys (4 keys)
   apilayerKeys: [

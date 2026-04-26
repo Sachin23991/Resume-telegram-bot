@@ -77,7 +77,7 @@ Parser Chain:
 APILayer → CVParser → UseResume → AI Extraction → Raw Text
 
 AI Provider Chain:
-OpenRouter (Primary) → Gemini (Secondary) → OpenAI (Tertiary)
+OpenRouter (Primary) → Gemini (Secondary)
 ```
 
 ### 4. Circuit Breaker Pattern
@@ -183,7 +183,7 @@ User sends JD (text or file)
 ┌─────────────────────────────────────────┐
 │  3. Analysis Phase                      │
 │     - Extract CV structure (AI)         │
-│     - Get suggestions (Gemini/OpenAI)   │
+│     - Get suggestions (OpenRouter/Gemini) │
 │     - Score match (AI with full text)   │
 │     - Store analysis in session         │
 │     - State: WAITING_ACTION_CHOICE      │
@@ -217,7 +217,7 @@ User clicks action button
 ### AIService (`src/services/AIService.js`)
 
 **Responsibilities:**
-- AI provider abstraction (OpenRouter, Gemini, OpenAI)
+- AI provider abstraction (OpenRouter, Gemini)
 - Structure extraction from CV text
 - CV scoring against job descriptions
 - Resume rewriting and improvement
