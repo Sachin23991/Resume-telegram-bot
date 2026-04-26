@@ -3,148 +3,188 @@ import { classifyProviderError, getBackoffDelayMs, sleep } from '../utils/index.
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+/**
+ * Unified API Key Rotation Service with Circuit Breaker Pattern
+ *
+ * Key Features:
+ * - Circuit breaker pattern (closed → open → half-open)
+ * - Health tracking with automatic recovery
+ * - Per-key failure counting before disabling
+ * - Exponential backoff with jitter
+ * - Clear logging of which key was used
+ */
 export class APIKeyRotationService {
   constructor() {
-    this.keys = config.openrouterKeys || [];
+    // All keys organized by provider
+    this.openrouterKeys = config.openrouterKeys || [];
     this.fallbackKey = config.openrouterKeyFallback;
+
+    // Current index for round-robin
     this.currentKeyIndex = 0;
-    this.keyFailures = {}; // Track failures per key
-    this.keyDisabled = {}; // Keys disabled for this process lifecycle
-    this.keyStats = {}; // Track usage stats per key
 
-    // Initialize tracking objects
-    this.keys.forEach((key, idx) => {
-      const keyId = `KEY_${idx + 1}`;
+    // Circuit breaker state per key
+    // States: 'closed' (healthy), 'open' (failing), 'half-open' (testing recovery)
+    this.keyCircuitState = {};
+    this.keyFailures = {};
+    this.keySuccesses = {};
+    this.keyLastFailureTime = {};
+    this.keyLastSuccessTime = {};
+    this.keyTotalCalls = {};
+
+    // Circuit breaker thresholds
+    this.CIRCUIT_FAILURE_THRESHOLD = 5;  // Open circuit after 5 consecutive failures
+    this.CIRCUIT_RECOVERY_TIMEOUT_MS = 60000; // Try recovery after 60 seconds
+    this.HALF_OPEN_TEST_REQUESTS = 2;  // Need 2 successful calls to close circuit
+
+    // Initialize tracking for all keys
+    this._initKeyTracking('PRIMARY', this.openrouterKeys);
+    this._initKeyTracking('FALLBACK', this.fallbackKey ? [this.fallbackKey] : []);
+  }
+
+  _initKeyTracking(prefix, keys) {
+    keys.forEach((_, idx) => {
+      const keyId = `${prefix}_${idx}`;
+      this.keyCircuitState[keyId] = 'closed';
       this.keyFailures[keyId] = 0;
-      this.keyDisabled[keyId] = false;
-      this.keyStats[keyId] = {
-        uses: 0,
-        failures: 0,
-        successes: 0,
-        lastUsed: null,
-      };
+      this.keySuccesses[keyId] = 0;
+      this.keyLastFailureTime[keyId] = null;
+      this.keyLastSuccessTime[keyId] = null;
+      this.keyTotalCalls[keyId] = 0;
     });
-
-    this.keyFailures['FALLBACK'] = 0;
-    this.keyDisabled['FALLBACK'] = false;
-    this.keyStats['FALLBACK'] = {
-      uses: 0,
-      failures: 0,
-      successes: 0,
-      lastUsed: null,
-    };
   }
 
   /**
-   * Get the next API key to use (rotation + fallback logic)
-   * Priority:
-   * 1. Rotate through primary keys (KEY_1, KEY_2, KEY_3)
-   * 2. If primary key is healthy (low failures), use it
-   * 3. If primary key has too many failures, skip to next
-   * 4. If all primary keys failed too much, use fallback
+   * Get the circuit breaker state for a key
    */
-  getNextKey(allowFallback = true) {
-    const MAX_FAILURES_BEFORE_SKIP = 3;
-    const totalKeys = this.keys.length;
+  _getCircuitState(keyId) {
+    const state = this.keyCircuitState[keyId];
+    if (state !== 'open') return state;
 
-    if (totalKeys === 0 && !this.fallbackKey) {
-      throw new Error('No OpenRouter API keys configured');
+    // Check if recovery timeout has passed - move to half-open
+    const lastFailure = this.keyLastFailureTime[keyId];
+    if (lastFailure && Date.now() - lastFailure > this.CIRCUIT_RECOVERY_TIMEOUT_MS) {
+      this.keyCircuitState[keyId] = 'half-open';
+      console.log(`[APIKeyRotation] ${keyId} circuit recovered, testing with half-open state`);
+      return 'half-open';
+    }
+    return 'open';
+  }
+
+  /**
+   * Record successful API call
+   */
+  recordSuccess(keyId) {
+    this.keyFailures[keyId] = 0; // Reset failures on success
+    this.keySuccesses[keyId] = (this.keySuccesses[keyId] || 0) + 1;
+    this.keyLastSuccessTime[keyId] = Date.now();
+    this.keyTotalCalls[keyId] = (this.keyTotalCalls[keyId] || 0) + 1;
+
+    // If in half-open state, need consecutive successes to close circuit
+    if (this.keyCircuitState[keyId] === 'half-open') {
+      const recentSuccesses = this.keySuccesses[keyId];
+      if (recentSuccesses >= this.HALF_OPEN_TEST_REQUESTS) {
+        this.keyCircuitState[keyId] = 'closed';
+        console.log(`[APIKeyRotation] ${keyId} circuit CLOSED - recovered to healthy state`);
+      }
     }
 
-    // Try to find a healthy primary key
-    for (let i = 0; i < totalKeys; i++) {
-      const keyId = `KEY_${(this.currentKeyIndex % totalKeys) + 1}`;
-      this.currentKeyIndex = (this.currentKeyIndex + 1) % totalKeys;
+    const totalCalls = this.keyTotalCalls[keyId];
+    const successRate = totalCalls > 0 ? ((this.keySuccesses[keyId] / totalCalls) * 100).toFixed(1) : '100';
+    console.log(`[APIKeyRotation] ✓ ${keyId} success (total: ${totalCalls}, success rate: ${successRate}%)`);
+  }
 
-      if (this.keyFailures[keyId] < MAX_FAILURES_BEFORE_SKIP) {
-        const keyIndex = parseInt(keyId.split('_')[1]) - 1;
+  /**
+   * Record failed API call
+   */
+  recordFailure(keyId, error) {
+    const status = error?.status || 0;
+    const message = error?.message || '';
+    const category = classifyProviderError(status, message);
+
+    this.keyFailures[keyId] = (this.keyFailures[keyId] || 0) + 1;
+    this.keyLastFailureTime[keyId] = Date.now();
+    this.keyTotalCalls[keyId] = (this.keyTotalCalls[keyId] || 0) + 1;
+
+    // Auth/credit errors permanently disable the key
+    if (category === 'auth' || category === 'credit') {
+      this.keyCircuitState[keyId] = 'open';
+      console.log(`[APIKeyRotation] ✗ ${keyId} auth/credit error - permanently disabling`);
+      return;
+    }
+
+    // Check if we should open the circuit
+    if (this.keyFailures[keyId] >= this.CIRCUIT_FAILURE_THRESHOLD) {
+      this.keyCircuitState[keyId] = 'open';
+      const nextRecovery = new Date(Date.now() + this.CIRCUIT_RECOVERY_TIMEOUT_MS).toLocaleTimeString();
+      console.log(`[APIKeyRotation] ✗ ${keyId} circuit OPENED - too many failures, will retry after ${new Date(nextRecovery).toLocaleTimeString()}`);
+    } else {
+      console.log(`[APIKeyRotation] ✗ ${keyId} failure #${this.keyFailures[keyId]} (threshold: ${this.CIRCUIT_FAILURE_THRESHOLD}) - reason: ${message}`);
+    }
+  }
+
+  /**
+   * Get next available key with circuit breaker awareness
+   * Returns the key with its metadata
+   */
+  getNextAvailableKey() {
+    // Try primary keys in round-robin
+    for (let attempt = 0; attempt < this.openrouterKeys.length; attempt++) {
+      const keyIdx = this.currentKeyIndex % this.openrouterKeys.length;
+      this.currentKeyIndex = (this.currentKeyIndex + 1) % this.openrouterKeys.length;
+      const keyId = `PRIMARY_${keyIdx}`;
+
+      const circuitState = this._getCircuitState(keyId);
+      if (circuitState === 'closed' || circuitState === 'half-open') {
         return {
-          key: this.keys[keyIndex],
+          key: this.openrouterKeys[keyIdx],
           keyId,
-          isFallback: false,
+          isFallback: false
         };
       }
     }
 
-    if (!allowFallback) {
-      throw new Error('No healthy primary OpenRouter API keys available');
+    // All primary keys are circuit-open, try fallback
+    if (this.fallbackKey) {
+      const fallbackKeyId = 'FALLBACK_0';
+      const circuitState = this._getCircuitState(fallbackKeyId);
+
+      if (circuitState === 'closed' || circuitState === 'half-open') {
+        return {
+          key: this.fallbackKey,
+          keyId: fallbackKeyId,
+          isFallback: true
+        };
+      }
     }
 
-    // All primary keys have too many failures, use fallback
-    console.log('[APIKeyRotation] All primary keys have too many failures or were already tried, using FALLBACK key');
+    // No healthy keys available - all circuits are open
+    // Force retry of first key (circuit breaker will allow half-open state)
+    console.log(`[APIKeyRotation] WARNING: All circuits open, forcing retry of first key`);
+    this.keyCircuitState['PRIMARY_0'] = 'half-open';
     return {
-      key: this.fallbackKey,
-      keyId: 'FALLBACK',
-      isFallback: true,
+      key: this.openrouterKeys[0],
+      keyId: 'PRIMARY_0',
+      isFallback: false
     };
   }
 
   /**
-   * Record a successful API call
-   */
-  recordSuccess(keyId) {
-    this.keyFailures[keyId] = Math.max(0, this.keyFailures[keyId] - 1); // Decrease failure count on success
-    if (this.keyStats[keyId]) {
-      this.keyStats[keyId].successes += 1;
-      this.keyStats[keyId].uses += 1;
-      this.keyStats[keyId].lastUsed = new Date();
-    }
-    console.log(`[APIKeyRotation] ${keyId} - Success (failures: ${this.keyFailures[keyId]}, successes: ${this.keyStats[keyId]?.successes || 0})`);
-  }
-
-  /**
-   * Record a failed API call
-   */
-  recordFailure(keyId, error) {
-    const category = classifyProviderError(error?.status || 0, error?.message || '');
-    this.keyFailures[keyId] += 1;
-
-    if (category === 'auth' || category === 'credit') {
-      this.keyDisabled[keyId] = true;
-    }
-
-    if (this.keyStats[keyId]) {
-      this.keyStats[keyId].failures += 1;
-      this.keyStats[keyId].uses += 1;
-      this.keyStats[keyId].lastUsed = new Date();
-    }
-    console.log(`[APIKeyRotation] ${keyId} - Failure (total failures: ${this.keyFailures[keyId]}, disabled: ${this.keyDisabled[keyId]}, reason: ${error.message})`);
-  }
-
-  /**
-   * Call OpenRouter with automatic retry and fallback
+   * Call OpenRouter with automatic retry and circuit breaker
    */
   async callWithRotation(model, messages, maxTokens = 4096, maxRetries = 3) {
     let lastError = null;
-    const availableKeys = this.keys.length + (this.fallbackKey ? 1 : 0);
-    let attemptsRemaining = Math.max(maxRetries, availableKeys);
-    const attemptedKeys = new Set();
-    const totalAttempts = attemptsRemaining;
+    const startTime = Date.now();
 
-    while (attemptsRemaining > 0) {
-      let keyInfo = null;
-      try {
-        keyInfo = this.getNextUntriedKey(attemptedKeys);
-      } catch (error) {
-        lastError = error;
-        break;
-      }
-
-      const { key, keyId } = keyInfo;
-      attemptedKeys.add(keyId);
-
-      if (!key) {
-        throw new Error('No OpenRouter API keys available');
-      }
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const keyInfo = this.getNextAvailableKey();
+      console.log(`[APIKeyRotation] Attempt ${attempt}/${maxRetries} using ${keyInfo.keyId} (circuit: ${this._getCircuitState(keyInfo.keyId)})`);
 
       try {
-        console.log(`[APIKeyRotation] Attempt ${totalAttempts - attemptsRemaining + 1}/${totalAttempts} with ${keyId}`);
-
         const response = await fetch(OPENROUTER_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${key}`,
+            Authorization: `Bearer ${keyInfo.key}`,
           },
           body: JSON.stringify({
             model,
@@ -154,9 +194,9 @@ export class APIKeyRotationService {
         });
 
         if (!response.ok) {
-          const error = await this.readError(response);
-          const message = `${response.status}: ${error.error?.message || error.message || JSON.stringify(error)}`;
-          const wrapped = new Error(message);
+          const error = await this._readError(response);
+          const errorMsg = error.error?.message || error.message || JSON.stringify(error);
+          const wrapped = new Error(errorMsg);
           wrapped.status = response.status;
           wrapped.retryAfter = response.headers.get('Retry-After');
           throw wrapped;
@@ -169,60 +209,37 @@ export class APIKeyRotationService {
           throw new Error('Empty response from OpenRouter');
         }
 
-        this.recordSuccess(keyId);
+        this.recordSuccess(keyInfo.keyId);
+        const duration = Date.now() - startTime;
+        console.log(`[APIKeyRotation] ✓ Successfully completed in ${duration}ms using ${keyInfo.keyId}`);
         return content;
+
       } catch (error) {
         lastError = error;
-        this.recordFailure(keyId, error);
-        attemptsRemaining -= 1;
-
-        if (attemptsRemaining === 0) {
-          console.log(`[APIKeyRotation] All retry attempts exhausted`);
-          break;
-        }
+        this.recordFailure(keyInfo.keyId, error);
 
         const category = classifyProviderError(error?.status || 0, error?.message || '');
-        if (category === 'rate_limit' || category === 'transient') {
-          const delayMs = getBackoffDelayMs(totalAttempts - attemptsRemaining, category, error?.retryAfter);
+        const isRetryable = category === 'rate_limit' || category === 'transient';
+
+        console.log(`[APIKeyRotation] ✗ ${keyInfo.keyId} failed: ${error.message} (category: ${category}, retryable: ${isRetryable})`);
+
+        if (isRetryable && attempt < maxRetries) {
+          const delayMs = getBackoffDelayMs(attempt, category, error?.retryAfter);
+          console.log(`[APIKeyRotation] Waiting ${delayMs}ms before retry...`);
           await sleep(delayMs);
         }
 
-        console.log(`[APIKeyRotation] Retrying with another key... (${attemptsRemaining} retries remaining)`);
+        // If circuit is now open for this key, immediately try next key
+        if (this._getCircuitState(keyInfo.keyId) === 'open' && attempt < maxRetries) {
+          console.log(`[APIKeyRotation] ${keyInfo.keyId} circuit is open, skipping to next key`);
+        }
       }
     }
 
-    throw new Error(`All OpenRouter API calls failed. Last error: ${lastError?.message}`);
+    throw new Error(`All OpenRouter API calls failed after ${maxRetries} attempts. Last error: ${lastError?.message}`);
   }
 
-  getNextUntriedKey(attemptedKeys) {
-    const totalKeys = this.keys.length;
-
-    for (let i = 0; i < totalKeys; i++) {
-      const keyId = `KEY_${(this.currentKeyIndex % totalKeys) + 1}`;
-      this.currentKeyIndex = (this.currentKeyIndex + 1) % totalKeys;
-
-      if (!attemptedKeys.has(keyId) && !this.keyDisabled[keyId]) {
-        const keyIndex = parseInt(keyId.split('_')[1]) - 1;
-        return {
-          key: this.keys[keyIndex],
-          keyId,
-          isFallback: false,
-        };
-      }
-    }
-
-    if (this.fallbackKey && !attemptedKeys.has('FALLBACK') && !this.keyDisabled.FALLBACK) {
-      return {
-        key: this.fallbackKey,
-        keyId: 'FALLBACK',
-        isFallback: true,
-      };
-    }
-
-    throw new Error('No untried OpenRouter API keys available');
-  }
-
-  async readError(response) {
+  async _readError(response) {
     const text = await response.text();
     try {
       return JSON.parse(text);
@@ -235,32 +252,49 @@ export class APIKeyRotationService {
    * Get rotation stats for monitoring
    */
   getStats() {
+    const stats = {};
+    const allKeyIds = [
+      ...this.openrouterKeys.map((_, i) => `PRIMARY_${i}`),
+      ...(this.fallbackKey ? ['FALLBACK_0'] : [])
+    ];
+
+    for (const keyId of allKeyIds) {
+      const totalCalls = this.keyTotalCalls[keyId] || 0;
+      const successes = this.keySuccesses[keyId] || 0;
+      const failures = this.keyFailures[keyId] || 0;
+      stats[keyId] = {
+        circuitState: this.keyCircuitState[keyId] || 'closed',
+        totalCalls,
+        successes,
+        failures,
+        successRate: totalCalls > 0 ? ((successes / totalCalls) * 100).toFixed(1) + '%' : 'N/A',
+        lastSuccess: this.keyLastSuccessTime[keyId] ? new Date(this.keyLastSuccessTime[keyId]).toLocaleString() : 'Never',
+        lastFailure: this.keyLastFailureTime[keyId] ? new Date(this.keyLastFailureTime[keyId]).toLocaleString() : 'Never',
+      };
+    }
+
     return {
-      keys: this.keys.length,
+      totalKeys: this.openrouterKeys.length + (this.fallbackKey ? 1 : 0),
       currentIndex: this.currentKeyIndex,
-      stats: this.keyStats,
-      failures: this.keyFailures,
+      keys: stats
     };
   }
 
   /**
-   * Reset failure counts for a key
+   * Reset circuit breakers for all keys (use after system recovery)
    */
-  resetKeyFailures(keyId) {
-    if (this.keyFailures.hasOwnProperty(keyId)) {
-      this.keyFailures[keyId] = 0;
-      console.log(`[APIKeyRotation] Reset failures for ${keyId}`);
-    }
-  }
+  resetAllCircuits() {
+    const allKeyIds = [
+      ...this.openrouterKeys.map((_, i) => `PRIMARY_${i}`),
+      ...(this.fallbackKey ? ['FALLBACK_0'] : [])
+    ];
 
-  /**
-   * Reset all failure counts
-   */
-  resetAllFailures() {
-    Object.keys(this.keyFailures).forEach((key) => {
-      this.keyFailures[key] = 0;
-    });
-    console.log('[APIKeyRotation] Reset all failure counts');
+    for (const keyId of allKeyIds) {
+      this.keyCircuitState[keyId] = 'closed';
+      this.keyFailures[keyId] = 0;
+      this.keySuccesses[keyId] = 0;
+    }
+    console.log('[APIKeyRotation] All circuit breakers reset');
   }
 }
 
