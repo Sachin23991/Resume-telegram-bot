@@ -129,9 +129,17 @@ jobs:
           exit 1
         fi
 
-        # Preflight 2: block known wrong secret JSON key wiring that causes ResourceInitializationError.
+        # Preflight 2: auto-fix known wrong secret JSON key wiring that causes ResourceInitializationError.
         if jq -e '.containerDefinitions[]?.secrets[]? | select(.valueFrom | test("AFFINDA_KEY_1"))' taskdef-updated.json >/dev/null; then
-          echo "Invalid secret key reference detected: AFFINDA_KEY_1. Use APILAYER_KEY_1 in Secrets Manager mapping."
+          echo "Found legacy secret key reference AFFINDA_KEY_1. Rewriting to APILAYER_KEY_1..."
+          jq '
+            (.containerDefinitions[]?.secrets[]? | select(.valueFrom | test("AFFINDA_KEY_1")) | .valueFrom) |= sub("AFFINDA_KEY_1"; "APILAYER_KEY_1")
+          ' taskdef-updated.json > taskdef-normalized.json
+          mv taskdef-normalized.json taskdef-updated.json
+        fi
+
+        if jq -e '.containerDefinitions[]?.secrets[]? | select(.valueFrom | test("AFFINDA_KEY_1"))' taskdef-updated.json >/dev/null; then
+          echo "Invalid secret key reference still present: AFFINDA_KEY_1. Fix secret mapping in ECS task definition."
           exit 1
         fi
 
