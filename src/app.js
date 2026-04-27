@@ -210,57 +210,104 @@ bot.catch(async (err, ctx) => {
 
 // ============ SERVER SETUP ============
 
-const server = http.createServer(bot.webhookCallback(`/telegraf/${config.telegramBotToken.split(':')[1]}`));
+const isProduction = process.env.NODE_ENV === 'production';
+const webhookDomain = (process.env.WEBHOOK_DOMAIN || '').trim();
+const webhookPath = `/telegraf/${bot.secretPathComponent()}`;
+let server = null;
 
-// Start bot and server
-if (process.env.NODE_ENV === 'production') {
-  // Production mode: use webhooks
-  console.log('Starting CV Analyzer Pro in production mode...');
-  const domain = process.env.WEBHOOK_DOMAIN;
-  if (!domain) {
-    throw new Error('WEBHOOK_DOMAIN environment variable is not set');
-  }
-  const secretPath = `/telegraf/${bot.secretPathComponent()}`;
+const startWebhookServer = () => {
+  server = http.createServer((req, res) => {
+    if (req.url === webhookPath) {
+      const handler = bot.webhookCallback(webhookPath);
+      return handler(req, res);
+    }
 
-  server.listen(port, async () => {
+    if (req.url === '/' || req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', mode: 'webhook' }));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'not_found' }));
+  });
+
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, resolve);
+  });
+};
+
+const startHealthServer = () => {
+  server = http.createServer((req, res) => {
+    if (req.url === '/' || req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', mode: 'polling' }));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'not_found' }));
+  });
+
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, resolve);
+  });
+};
+
+const startPollingMode = async (startupLabel) => {
+  console.log(startupLabel);
+  await bot.launch();
+  console.log('CV Analyzer Pro is running with long polling!');
+  console.log('Listening for messages...');
+  console.log('Commands: /start, /menu, /help, /end, /history, /stats');
+
+  await startHealthServer();
+  console.log(`Health server listening on port ${port}`);
+};
+
+const startApp = async () => {
+  if (isProduction && webhookDomain) {
+    console.log('Starting CV Analyzer Pro in production mode (webhook)...');
+
+    await startWebhookServer();
     console.log(`HTTP server listening on port ${port}`);
-    await bot.telegram.setWebhook(`https://${domain}${secretPath}`);
-    console.log(`Webhook set to https://${domain}${secretPath}`);
-    console.log('CV Analyzer Pro is ready for production!');
-  });
 
-  bot.catch((err, ctx) => {
-    console.error('Bot error:', err);
-  });
-} else {
-  // Development mode: use long polling
-  console.log('Starting CV Analyzer Pro in development mode...');
-  console.log('Bot is running with long polling...');
-  bot.launch()
-    .then(() => {
-      console.log('CV Analyzer Pro is running!');
-      console.log('Listening for messages...');
-      console.log('Commands: /start, /menu, /help, /end, /history, /stats');
-    })
-    .catch((error) => {
-      console.error('Failed to launch bot:', error);
-      process.exitCode = 1;
-    });
-}
+    await bot.telegram.setWebhook(`https://${webhookDomain}${webhookPath}`);
+    console.log(`Webhook set to https://${webhookDomain}${webhookPath}`);
+    console.log('CV Analyzer Pro is ready for production!');
+    return;
+  }
+
+  if (isProduction) {
+    console.log('WEBHOOK_DOMAIN is not set; starting in production long-polling mode.');
+    await startPollingMode('Starting CV Analyzer Pro in production mode (long polling fallback)...');
+    return;
+  }
+
+  await startPollingMode('Starting CV Analyzer Pro in development mode...');
+};
+
+startApp().catch((error) => {
+  console.error('Failed to start bot:', error);
+  process.exit(1);
+});
 
 // Graceful shutdown
 const gracefulShutdown = (signal) => {
   console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
   bot.stop(signal);
-  server.close(() => {
-    console.log('✅ Server closed. Goodbye!');
-    process.exit(0);
-  });
-  // Force close after 10 seconds
-  setTimeout(() => {
-    console.log('⚠️ Forced shutdown after timeout');
-    process.exit(1);
-  }, 10000);
+  if (server && server.listening) {
+    server.close(() => {
+      console.log('✅ Server closed. Goodbye!');
+      process.exit(0);
+    });
+    return;
+  }
+
+  console.log('✅ Bot stopped. Goodbye!');
+  process.exit(0);
 };
 
 process.once('SIGINT', () => gracefulShutdown('SIGINT'));

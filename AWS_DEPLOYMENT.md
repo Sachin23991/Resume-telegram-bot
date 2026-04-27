@@ -109,6 +109,8 @@ Create file `taskdef.json` locally with your values:
 }
 ```
 
+If you switch this task definition to AWS Secrets Manager later, keep the secret JSON keys identical to these env names. ECS resolves the JSON field name exactly, so `APILAYER_KEY_1` must exist as `APILAYER_KEY_1` in Secrets Manager, not `AFFINDA_KEY_1` or any other variant.
+
 Register task definition:
 
 ```bash

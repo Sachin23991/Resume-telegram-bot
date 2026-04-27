@@ -504,7 +504,51 @@ If you see rate limit errors:
 
 ### Use AWS Secrets Manager (Production)
 
-Instead of plain environment variables:
+If you store the values in AWS Secrets Manager, make sure the JSON keys in the secret match the app's env names exactly. The bot reads:
+
+- `TELEGRAM_BOT_TOKEN`
+- `MONGODB_URL`
+- `MONGODB_DB_NAME`
+- `OPENROUTER_KEY_1`
+- `OPENROUTER_KEY_2`
+- `OPENROUTER_KEY_3`
+- `OPENROUTER_KEY_FALLBACK`
+- `GEMINI_API_KEY`
+- `APILAYER_KEY_1`
+- `APILAYER_KEY_2`
+- `APILAYER_KEY_3`
+- `APILAYER_KEY_4`
+- `CVPARSER_KEY_1`
+- `CVPARSER_KEY_2`
+- `CVPARSER_KEY_3`
+- `CVPARSER_KEY_4`
+- `CVPARSER_API_URL`
+
+Example secret payload:
+
+```json
+{
+  "TELEGRAM_BOT_TOKEN": "...",
+  "MONGODB_URL": "...",
+  "MONGODB_DB_NAME": "...",
+  "OPENROUTER_KEY_1": "...",
+  "OPENROUTER_KEY_2": "...",
+  "OPENROUTER_KEY_3": "...",
+  "OPENROUTER_KEY_FALLBACK": "...",
+  "GEMINI_API_KEY": "...",
+  "APILAYER_KEY_1": "...",
+  "APILAYER_KEY_2": "...",
+  "APILAYER_KEY_3": "...",
+  "APILAYER_KEY_4": "...",
+  "CVPARSER_KEY_1": "...",
+  "CVPARSER_KEY_2": "...",
+  "CVPARSER_KEY_3": "...",
+  "CVPARSER_KEY_4": "...",
+  "CVPARSER_API_URL": "https://api.cvparser-api.com/graphql"
+}
+```
+
+Example ECS container secret mapping:
 
 ```json
 {
@@ -516,10 +560,72 @@ Instead of plain environment variables:
     {
       "name": "MONGODB_URL",
       "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/mongodb"
+    },
+    {
+      "name": "MONGODB_DB_NAME",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:MONGODB_DB_NAME::"
+    },
+    {
+      "name": "OPENROUTER_KEY_1",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:OPENROUTER_KEY_1::"
+    },
+    {
+      "name": "OPENROUTER_KEY_2",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:OPENROUTER_KEY_2::"
+    },
+    {
+      "name": "OPENROUTER_KEY_3",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:OPENROUTER_KEY_3::"
+    },
+    {
+      "name": "OPENROUTER_KEY_FALLBACK",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:OPENROUTER_KEY_FALLBACK::"
+    },
+    {
+      "name": "GEMINI_API_KEY",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:GEMINI_API_KEY::"
+    },
+    {
+      "name": "APILAYER_KEY_1",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:APILAYER_KEY_1::"
+    },
+    {
+      "name": "APILAYER_KEY_2",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:APILAYER_KEY_2::"
+    },
+    {
+      "name": "APILAYER_KEY_3",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:APILAYER_KEY_3::"
+    },
+    {
+      "name": "APILAYER_KEY_4",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:APILAYER_KEY_4::"
+    },
+    {
+      "name": "CVPARSER_KEY_1",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:CVPARSER_KEY_1::"
+    },
+    {
+      "name": "CVPARSER_KEY_2",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:CVPARSER_KEY_2::"
+    },
+    {
+      "name": "CVPARSER_KEY_3",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:CVPARSER_KEY_3::"
+    },
+    {
+      "name": "CVPARSER_KEY_4",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:CVPARSER_KEY_4::"
+    },
+    {
+      "name": "CVPARSER_API_URL",
+      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cv-analyzer/app-config:CVPARSER_API_URL::"
     }
   ]
 }
 ```
+
+Do not use `AFFINDA_KEY_1`; the correct env key in this app is `APILAYER_KEY_1`.
 
 ### Restrict Security Group
 

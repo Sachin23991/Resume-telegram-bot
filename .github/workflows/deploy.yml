@@ -23,16 +23,191 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build, tag, and push Docker image
+    - name: Ensure jq is available
       run: |
+        set -euo pipefail
+        if ! command -v jq >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y jq
+        fi
+
+    - name: Build, tag, and push Docker image
+      id: build_image
+      run: |
+        set -euo pipefail
         IMAGE_TAG=${{ github.sha }}
-        docker build -t ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
-        docker tag ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG
-        docker push ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG
+        IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG
+
+        docker build -t "$IMAGE_URI" .
+        docker push "$IMAGE_URI"
+
+        echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
 
     - name: Update ECS service
+      id: deploy_service
       run: |
+        set -euo pipefail
+
+        IMAGE_URI='${{ steps.build_image.outputs.image_uri }}'
+        CLUSTER='${{ secrets.ECS_CLUSTER }}'
+        SERVICE='${{ secrets.ECS_SERVICE }}'
+        CONTAINER_NAME='${{ secrets.ECS_CONTAINER_NAME }}'
+
+        if [ -z "$IMAGE_URI" ]; then
+          echo "IMAGE_URI output is empty; aborting deployment"
+          exit 1
+        fi
+
+        CURRENT_TASK_DEF_ARN=$(aws ecs describe-services \
+          --cluster "$CLUSTER" \
+          --services "$SERVICE" \
+          --query 'services[0].taskDefinition' \
+          --output text)
+
+        if [ -z "$CURRENT_TASK_DEF_ARN" ] || [ "$CURRENT_TASK_DEF_ARN" = "None" ]; then
+          echo "Could not resolve current task definition for service '$SERVICE' in cluster '$CLUSTER'"
+          exit 1
+        fi
+
+        aws ecs describe-task-definition \
+          --task-definition "$CURRENT_TASK_DEF_ARN" \
+          --query taskDefinition \
+          --output json > taskdef.json
+
+        if [ -n "$CONTAINER_NAME" ]; then
+          jq --arg IMAGE "$IMAGE_URI" --arg CONTAINER "$CONTAINER_NAME" '
+            .containerDefinitions |= map(
+              if .name == $CONTAINER then .image = $IMAGE else . end
+            )
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy,
+                .deregisteredAt,
+                .tags
+              )
+          ' taskdef.json > taskdef-updated.json
+        else
+          jq --arg IMAGE "$IMAGE_URI" '
+            .containerDefinitions[0].image = $IMAGE
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy,
+                .deregisteredAt,
+                .tags
+              )
+          ' taskdef.json > taskdef-updated.json
+        fi
+
+        if [ -n "$CONTAINER_NAME" ] && ! jq -e --arg CONTAINER "$CONTAINER_NAME" '.containerDefinitions[] | select(.name == $CONTAINER)' taskdef-updated.json >/dev/null; then
+          echo "Container '$CONTAINER_NAME' not found in task definition"
+          exit 1
+        fi
+
+        jq -e '.containerDefinitions[0].image' taskdef-updated.json >/dev/null
+
+        # Preflight 1: ensure image tag exists in ECR before updating ECS service.
+        IMAGE_REF="${IMAGE_URI#*/}"
+        ECR_REPOSITORY="${IMAGE_REF%:*}"
+        ECR_IMAGE_TAG="${IMAGE_REF##*:}"
+
+        if ! aws ecr describe-images \
+          --repository-name "$ECR_REPOSITORY" \
+          --image-ids imageTag="$ECR_IMAGE_TAG" \
+          --query 'imageDetails[0].imageDigest' \
+          --output text >/dev/null; then
+          echo "Image '$IMAGE_URI' not found in ECR. Aborting deployment to avoid ECS image pull failures."
+          exit 1
+        fi
+
+        # Preflight 2: block known wrong secret JSON key wiring that causes ResourceInitializationError.
+        if jq -e '.containerDefinitions[]?.secrets[]? | select(.valueFrom | test("AFFINDA_KEY_1"))' taskdef-updated.json >/dev/null; then
+          echo "Invalid secret key reference detected: AFFINDA_KEY_1. Use APILAYER_KEY_1 in Secrets Manager mapping."
+          exit 1
+        fi
+
+        NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+          --cli-input-json file://taskdef-updated.json \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text)
+
+        if [ -z "$NEW_TASK_DEF_ARN" ] || [ "$NEW_TASK_DEF_ARN" = "None" ]; then
+          echo "Failed to register new task definition"
+          exit 1
+        fi
+
         aws ecs update-service \
-          --cluster ${{ secrets.ECS_CLUSTER }} \
-          --service ${{ secrets.ECS_SERVICE }} \
+          --cluster "$CLUSTER" \
+          --service "$SERVICE" \
+          --task-definition "$NEW_TASK_DEF_ARN" \
           --force-new-deployment
+
+        echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
+        echo "service=$SERVICE" >> "$GITHUB_OUTPUT"
+        echo "task_definition=$NEW_TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
+
+    - name: Verify ECS deployment health
+      run: |
+        set -euo pipefail
+
+        CLUSTER='${{ steps.deploy_service.outputs.cluster }}'
+        SERVICE='${{ steps.deploy_service.outputs.service }}'
+
+        echo "Waiting for ECS service to become stable..."
+        aws ecs wait services-stable \
+          --cluster "$CLUSTER" \
+          --services "$SERVICE"
+
+        SERVICE_JSON=$(aws ecs describe-services \
+          --cluster "$CLUSTER" \
+          --services "$SERVICE" \
+          --output json)
+
+        DESIRED_COUNT=$(echo "$SERVICE_JSON" | jq -r '.services[0].desiredCount')
+        RUNNING_COUNT=$(echo "$SERVICE_JSON" | jq -r '.services[0].runningCount')
+        PENDING_COUNT=$(echo "$SERVICE_JSON" | jq -r '.services[0].pendingCount')
+        PRIMARY_ROLLOUT=$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .rolloutState')
+
+        echo "Service desired: $DESIRED_COUNT, running: $RUNNING_COUNT, pending: $PENDING_COUNT, rollout: $PRIMARY_ROLLOUT"
+
+        if [ "$RUNNING_COUNT" -lt 1 ]; then
+          echo "No running ECS tasks after deployment"
+
+          echo "Recent stopped tasks:"
+          STOPPED_TASKS=$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" --desired-status STOPPED --max-items 5 --query 'taskArns' --output text || true)
+          if [ -n "$STOPPED_TASKS" ]; then
+            aws ecs describe-tasks \
+              --cluster "$CLUSTER" \
+              --tasks $STOPPED_TASKS \
+              --query 'tasks[].{taskArn:taskArn,lastStatus:lastStatus,stopCode:stopCode,stoppedReason:stoppedReason,containerReasons:containers[].reason,exitCodes:containers[].exitCode}' \
+              --output table || true
+          fi
+
+          exit 1
+        fi
+
+        if [ "$PRIMARY_ROLLOUT" != "COMPLETED" ]; then
+          echo "Primary deployment rollout state is '$PRIMARY_ROLLOUT' instead of COMPLETED"
+          exit 1
+        fi
+
+        RUNNING_TASKS=$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" --desired-status RUNNING --max-items 5 --query 'taskArns' --output text)
+        if [ -z "$RUNNING_TASKS" ] || [ "$RUNNING_TASKS" = "None" ]; then
+          echo "Service is stable but no RUNNING tasks were returned"
+          exit 1
+        fi
+
+        aws ecs describe-tasks \
+          --cluster "$CLUSTER" \
+          --tasks $RUNNING_TASKS \
+          --query 'tasks[].{taskArn:taskArn,lastStatus:lastStatus,healthStatus:healthStatus,containerStatus:containers[].lastStatus,containerHealth:containers[].healthStatus}' \
+          --output table
