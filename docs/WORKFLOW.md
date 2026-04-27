@@ -616,7 +616,6 @@ AI Analysis Failed:
 Parser Failed:
 ├─ Try APILayer → Failed
 ├─ Try CVParser → Failed
-├─ Try UseResume → Failed
 ├─ Try AI Extraction → Failed
 └─ Use raw text only + continue with scoring
 ```

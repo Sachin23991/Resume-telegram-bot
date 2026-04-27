@@ -17,7 +17,7 @@ export default {
     process.env.OPENROUTER_KEY_3,
   ].filter(Boolean),
   openrouterKeyFallback: process.env.OPENROUTER_KEY_FALLBACK,
-  openrouterModel: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+  openrouterModel: 'google/gemini-2.5-flash',
 
   // APILayer Resume Parser Keys (4 keys)
   apilayerKeys: [
@@ -25,13 +25,6 @@ export default {
     process.env.APILAYER_KEY_2,
     process.env.APILAYER_KEY_3,
     process.env.APILAYER_KEY_4,
-  ].filter(Boolean),
-
-  // UseResume API Keys (3 keys with fallback)
-  useResumeKeys: [
-    process.env.USERESUME_KEY_1,
-    process.env.USERESUME_KEY_2,
-    process.env.USERESUME_KEY_3,
   ].filter(Boolean),
 
   // CVParser API Keys (4 keys with fallback)

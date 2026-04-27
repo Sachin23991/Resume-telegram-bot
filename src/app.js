@@ -215,7 +215,7 @@ const server = http.createServer(bot.webhookCallback(`/telegraf/${config.telegra
 // Start bot and server
 if (process.env.NODE_ENV === 'production') {
   // Production mode: use webhooks
-  console.log('🔄 Starting CV Analyzer Pro in production mode...');
+  console.log('Starting CV Analyzer Pro in production mode...');
   const domain = process.env.WEBHOOK_DOMAIN;
   if (!domain) {
     throw new Error('WEBHOOK_DOMAIN environment variable is not set');
@@ -223,10 +223,10 @@ if (process.env.NODE_ENV === 'production') {
   const secretPath = `/telegraf/${bot.secretPathComponent()}`;
 
   server.listen(port, async () => {
-    console.log(`✅ HTTP server listening on port ${port}`);
+    console.log(`HTTP server listening on port ${port}`);
     await bot.telegram.setWebhook(`https://${domain}${secretPath}`);
-    console.log(`✅ Webhook set to https://${domain}${secretPath}`);
-    console.log('🚀 CV Analyzer Pro is ready for production!');
+    console.log(`Webhook set to https://${domain}${secretPath}`);
+    console.log('CV Analyzer Pro is ready for production!');
   });
 
   bot.catch((err, ctx) => {
@@ -234,18 +234,16 @@ if (process.env.NODE_ENV === 'production') {
   });
 } else {
   // Development mode: use long polling
-  console.log('🔄 Starting CV Analyzer Pro in development mode...');
-  console.log('📡 Bot is running with long polling...');
+  console.log('Starting CV Analyzer Pro in development mode...');
+  console.log('Bot is running with long polling...');
   bot.launch()
     .then(() => {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('✅ CV Analyzer Pro is running!');
-      console.log('🎯 Listening for messages...');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('CV Analyzer Pro is running!');
+      console.log('Listening for messages...');
       console.log('Commands: /start, /menu, /help, /end, /history, /stats');
     })
     .catch((error) => {
-      console.error('❌ Failed to launch bot:', error);
+      console.error('Failed to launch bot:', error);
       process.exitCode = 1;
     });
 }

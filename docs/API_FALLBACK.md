@@ -35,7 +35,7 @@ The bot employs a **defense-in-depth** strategy for API reliability:
 │                                                                 │
 │  Layer 3: Parser Fallback                                       │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  APILayer → CVParser → UseResume → AI Extraction       │   │
+│  │  APILayer -> CVParser -> AI Extraction       │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  Layer 4: Format Fallback                                       │
@@ -145,7 +145,6 @@ async analyzeCV(cvText, jobDescription) {
 │                                                                 │
 │     │ (on failure)                                              │
 │     ▼                                                           │
-│  3️⃣ UseResume (Tertiary)                                       │
 │     - Type: REST API                                            │
 │     - Keys: 3 keys with rotation                               │
 │     - Best for: Modern formats                                 │
@@ -195,14 +194,8 @@ async parseWholeCVWithFallbacks({ bufferArr, fileName, fileLink, cvText, ctx }) 
     parserAttempts.push({ source: 'cvparser', error: error.message });
   }
 
-  // 3) UseResume
   try {
-    console.log('[CVController] Trying UseResume parser...');
-    const useResumeResult = await useResumeService.parseResume(bufferArr, fileName);
-    const parsedData = this.buildFullCVParsedData(useResumeResult.data, cvText, 'useresume');
-    return { parsedData, parserSource: 'useresume', parserAttempts };
   } catch (error) {
-    parserAttempts.push({ source: 'useresume', error: error.message });
   }
 
   // 4) AI Fallback
@@ -493,7 +486,6 @@ With jitter applied:
 parserAttempts = [
   { source: 'apilayer', error: 'Rate limited' },
   { source: 'cvparser', error: 'Invalid GraphQL response' },
-  { source: 'useresume', error: null } // success
 ];
 ```
 

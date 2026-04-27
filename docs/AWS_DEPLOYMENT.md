@@ -79,7 +79,7 @@ Before starting, ensure you have:
 │  ├──► Telegram API (polling)                                   │
 │  ├──► MongoDB Atlas (database)                                 │
 │  ├──► OpenRouter/Gemini (AI APIs)                              │
-│  └──► APILayer/CVParser/UseResume (Parser APIs)                │
+│  └──► APILayer/CVParser (Parser APIs)                │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -223,8 +223,6 @@ Create `taskdef.json` with your values:
         }
       ],
       "environment": [
-        { "name": "NODE_ENV", "value": "production" },
-        { "name": "PORT", "value": "3000" },
         { "name": "TELEGRAM_BOT_TOKEN", "value": "YOUR_BOT_TOKEN" },
         { "name": "MONGODB_URL", "value": "YOUR_MONGODB_URL" },
         { "name": "MONGODB_DB_NAME", "value": "cv-analyzer" },
@@ -232,15 +230,11 @@ Create `taskdef.json` with your values:
         { "name": "OPENROUTER_KEY_2", "value": "YOUR_OPENROUTER_KEY_2" },
         { "name": "OPENROUTER_KEY_3", "value": "YOUR_OPENROUTER_KEY_3" },
         { "name": "OPENROUTER_KEY_FALLBACK", "value": "YOUR_OPENROUTER_KEY_FALLBACK" },
-        { "name": "OPENROUTER_MODEL", "value": "google/gemini-2.5-flash" },
         { "name": "GEMINI_API_KEY", "value": "YOUR_GEMINI_KEY" },
         { "name": "APILAYER_KEY_1", "value": "YOUR_APILAYER_KEY_1" },
         { "name": "APILAYER_KEY_2", "value": "YOUR_APILAYER_KEY_2" },
         { "name": "APILAYER_KEY_3", "value": "YOUR_APILAYER_KEY_3" },
         { "name": "APILAYER_KEY_4", "value": "YOUR_APILAYER_KEY_4" },
-        { "name": "USERESUME_KEY_1", "value": "YOUR_USERESUME_KEY_1" },
-        { "name": "USERESUME_KEY_2", "value": "YOUR_USERESUME_KEY_2" },
-        { "name": "USERESUME_KEY_3", "value": "YOUR_USERESUME_KEY_3" },
         { "name": "CVPARSER_KEY_1", "value": "YOUR_CVPARSER_KEY_1" },
         { "name": "CVPARSER_KEY_2", "value": "YOUR_CVPARSER_KEY_2" },
         { "name": "CVPARSER_KEY_3", "value": "YOUR_CVPARSER_KEY_3" },

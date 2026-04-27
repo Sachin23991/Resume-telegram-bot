@@ -48,7 +48,7 @@
 │     └── 4+ keys per provider with automatic failover           │
 │                                                                 │
 │  📊 Smart Resume Parsing                                       │
-│     └── APILayer → CVParser → UseResume → AI Fallback          │
+│     └── APILayer -> CVParser -> AI Fallback          │
 │                                                                 │
 │  🎯 Comprehensive Analysis                                     │
 │     └── Match Score • Keywords • Suggestions • Improvements    │
@@ -170,7 +170,6 @@ OPENROUTER_KEY_1=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_2=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_3=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_KEY_FALLBACK=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
-OPENROUTER_MODEL=google/gemini-2.5-flash
 
 # Google Gemini (Secondary Provider)
 # Get from: https://ai.google.dev/
@@ -191,11 +190,6 @@ CVPARSER_KEY_3=cvp_live_xxxxxxxxxxxxxxxxxxxxxxxx
 CVPARSER_KEY_4=cvp_live_xxxxxxxxxxxxxxxxxxxxxxxx
 CVPARSER_API_URL=https://api.cvparser-api.com/graphql
 
-# UseResume API (3 keys for rotation)
-# Get from: https://useresume.com/
-USERESUME_KEY_1=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
-USERESUME_KEY_2=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
-USERESUME_KEY_3=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ### API Key Setup
@@ -206,7 +200,6 @@ USERESUME_KEY_3=ur_live_xxxxxxxxxxxxxxxxxxxxxxxx
 | [Google Gemini](https://ai.google.dev/) | `makersuite.google.com` | Secondary AI | ✅ |
 | [APILayer](https://apilayer.com/) | `apilayer.com` | Resume parsing | ✅ 50/month |
 | [CVParser](https://cvparser-api.com/) | `cvparser-api.com` | Resume parsing | ✅ Trial |
-| [UseResume](https://useresume.com/) | `useresume.com` | Resume parsing | ✅ Trial |
 
 ---
 
@@ -373,7 +366,6 @@ Resume-telegram-bot/
 │   │   ├── 📄 APILayerService.js    # APILayer integration
 │   │   ├── 📄 CVExtractorService.js # PDF/DOCX/OCR extraction
 │   │   ├── 📄 CVParserService.js    # CVParser integration
-│   │   ├── 📄 UseResumeService.js   # UseResume integration
 │   │   ├── 📄 DocumentGeneratorService.js  # PDF/DOCX generation
 │   │   ├── 📄 ResumeRendererService.js   # Resume templating
 │   │   ├── 📄 ResumeTemplateService.js   # Resume data structures
@@ -430,7 +422,6 @@ Tertiary: Default Score (50/100)
 2️⃣ CVParser (Secondary)
    │
    ▼ (on failure)
-3️⃣ UseResume (Tertiary)
    │
    ▼ (on failure)
 4️⃣ AI Extraction (OpenRouter/Gemini)

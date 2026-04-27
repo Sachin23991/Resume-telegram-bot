@@ -62,7 +62,6 @@ src/services/
 ├── CVExtractorService.js     → PDF/DOCX/OCR extraction
 ├── APILayerService.js        → APILayer parser integration
 ├── CVParserService.js        → CVParser GraphQL integration
-├── UseResumeService.js       → UseResume REST integration
 ├── DocumentGeneratorService.js → PDF/DOCX generation
 ├── ResumeRendererService.js  → Resume templating & rendering
 └── WorkflowStoreService.js   → MongoDB persistence
@@ -74,7 +73,7 @@ Used for fallback chains:
 
 ```
 Parser Chain:
-APILayer → CVParser → UseResume → AI Extraction → Raw Text
+APILayer -> CVParser -> AI Extraction → Raw Text
 
 AI Provider Chain:
 OpenRouter (Primary) → Gemini (Secondary)
@@ -169,7 +168,7 @@ User uploads CV (PDF/DOCX/Image)
 │     - Download file from Telegram       │
 │     - Extract text (CVExtractorService) │
 │     - Parse structure (Parser Chain)    │
-│       APILayer → CVParser → UseResume   │
+│       APILayer -> CVParser   │
 │     - Store in session                  │
 └─────────────────────────────────────────┘
     │
@@ -342,7 +341,6 @@ src/
 │   ├── APILayerService.js          # APILayer integration
 │   ├── CVExtractorService.js       # File text extraction
 │   ├── CVParserService.js          # CVParser integration
-│   ├── UseResumeService.js         # UseResume integration
 │   ├── DocumentGeneratorService.js # PDF/DOCX generation
 │   ├── ResumeRendererService.js    # Resume document rendering
 │   ├── ResumeTemplateService.js    # Resume data structures

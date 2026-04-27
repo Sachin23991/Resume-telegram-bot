@@ -78,7 +78,6 @@ Create file `taskdef.json` locally with your values:
         }
       ],
       "environment": [
-        { "name": "PORT", "value": "3000" },
         { "name": "TELEGRAM_BOT_TOKEN", "value": "<VALUE>" },
         { "name": "MONGODB_URL", "value": "<VALUE>" },
         { "name": "MONGODB_DB_NAME", "value": "<VALUE>" },
@@ -86,15 +85,11 @@ Create file `taskdef.json` locally with your values:
         { "name": "OPENROUTER_KEY_2", "value": "<VALUE>" },
         { "name": "OPENROUTER_KEY_3", "value": "<VALUE>" },
         { "name": "OPENROUTER_KEY_FALLBACK", "value": "<VALUE>" },
-        { "name": "OPENROUTER_MODEL", "value": "google/gemini-2.5-flash" },
         { "name": "GEMINI_API_KEY", "value": "<VALUE>" },
         { "name": "APILAYER_KEY_1", "value": "<VALUE>" },
         { "name": "APILAYER_KEY_2", "value": "<VALUE>" },
         { "name": "APILAYER_KEY_3", "value": "<VALUE>" },
         { "name": "APILAYER_KEY_4", "value": "<VALUE>" },
-        { "name": "USERESUME_KEY_1", "value": "<VALUE>" },
-        { "name": "USERESUME_KEY_2", "value": "<VALUE>" },
-        { "name": "USERESUME_KEY_3", "value": "<VALUE>" },
         { "name": "CVPARSER_KEY_1", "value": "<VALUE>" },
         { "name": "CVPARSER_KEY_2", "value": "<VALUE>" },
         { "name": "CVPARSER_KEY_3", "value": "<VALUE>" },

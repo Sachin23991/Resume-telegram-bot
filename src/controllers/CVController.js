@@ -1,5 +1,5 @@
 import { UserState, UserSessionStore } from '../models/index.js';
-import { aiService, cvExtractorService, useResumeService, cvParserService, workflowStoreService, apiLayerService, documentGeneratorService, resumeTemplateService, resumeRendererService } from '../services/index.js';
+import { aiService, cvExtractorService, cvParserService, workflowStoreService, apiLayerService, documentGeneratorService, resumeTemplateService, resumeRendererService } from '../services/index.js';
 import { telegramView } from '../views/index.js';
 
 export class CVController {
@@ -89,19 +89,7 @@ export class CVController {
       console.log('[CVController] CVParser failed, trying next parser:', error.message);
     }
 
-    // 3) UseResume
-    try {
-      console.log('[CVController] Trying UseResume parser (whole CV)...');
-      const useResumeResult = await useResumeService.parseResume(bufferArr, fileName);
-      const parsedData = this.buildFullCVParsedData(useResumeResult.data, cvText, 'useresume');
-      console.log('[CVController] UseResume parsed full CV successfully');
-      return { parsedData, parserSource: 'useresume', parserAttempts };
-    } catch (error) {
-      parserAttempts.push({ source: 'useresume', error: error.message });
-      console.log('[CVController] UseResume failed, trying AI parser:', error.message);
-    }
-
-    // 4) AI fallback (OpenRouter -> Gemini)
+    // 3) AI fallback (OpenRouter -> Gemini)
     try {
       console.log('[CVController] Trying AI parser fallback (whole CV)...');
       const aiParsedData = await aiService.extractResumeDataWithOpenRouter(cvText);
@@ -488,33 +476,26 @@ export class CVController {
       await telegramView.sendDocument(ctx, document.buffer, document.fileName, document.mimeType, 'AI Improved Resume');
 
     } catch (e) {
-      console.log('[Controller] AI rewrite failed, trying UseResume:', e.message);
+      console.log('[Controller] Structured AI rewrite failed, trying text rewrite with allowed AI providers:', e.message);
       try {
-        const result = await useResumeService.createTailoredResume(cvBuffer, jobDescription, session.cv.fileName, {
-          parsedData: session.cv.parsedData,
-          resumeText: session.cv.text,
-        });
-        const runId = result.data?.run_id || result.data?.id || 'unknown';
+        const rewrittenText = await aiService.rewriteCVWithOpenRouter(
+          session.cv.text,
+          jobDescription,
+          structure,
+          analysis
+        );
+        const fallbackResumeData = resumeTemplateService.buildResumeData(rewrittenText, session.cv.text);
+        session.cv.resumeData = fallbackResumeData;
 
-        if (result.data?.content || result.data?.text || result.data) {
-          const generatedResumeData = resumeTemplateService.buildResumeData(
-            result.data?.content || result.data?.text || result.data,
-            session.cv.text
-          );
-          session.cv.resumeData = generatedResumeData;
-
-          const document = await resumeRendererService.generateResumeDocument(
-            generatedResumeData,
-            session.cv.mimeType,
-            session.cv.fileName,
-            session.cv.text
-          );
-          await telegramView.sendDocument(ctx, document.buffer, document.fileName, document.mimeType, 'Improved Resume');
-        } else {
-          await telegramView.improvedResumeComplete(ctx, result.data, runId);
-        }
-      } catch (e2) {
-        console.log('[Controller] UseResume also failed:', e2.message);
+        const document = await resumeRendererService.generateResumeDocument(
+          fallbackResumeData,
+          session.cv.mimeType,
+          session.cv.fileName,
+          session.cv.text
+        );
+        await telegramView.sendDocument(ctx, document.buffer, document.fileName, document.mimeType, 'Improved Resume');
+      } catch (fallbackError) {
+        console.log('[Controller] Allowed AI fallback also failed:', fallbackError.message);
         await telegramView.actionError(ctx, 'Failed to generate improved resume');
       }
     }
@@ -539,53 +520,12 @@ export class CVController {
         'cover_letter.pdf'
       );
 
-      await telegramView.sendDocument(ctx, pdfDoc.buffer, pdfDoc.fileName, pdfDoc.mimeType, '📝 Cover Letter');
-
+      await telegramView.sendDocument(ctx, pdfDoc.buffer, pdfDoc.fileName, pdfDoc.mimeType, 'Cover Letter');
     } catch (e) {
-      console.log('[Controller] AI cover letter failed, trying UseResume:', e.message);
-      try {
-        const result = await useResumeService.createTailoredCoverLetter(cvBuffer, jobDescription, session.cv.fileName, {
-          parsedData: session.cv.parsedData,
-          resumeText: session.cv.text,
-        });
-        const runId = result.data?.run_id || result.data?.id || 'unknown';
-        const content = this.extractCoverLetterContent(result.data);
-
-        if (content) {
-          const pdfDoc = await documentGeneratorService.generateDocument(
-            content,
-            'application/pdf',
-            'cover_letter.pdf'
-          );
-          await telegramView.sendDocument(ctx, pdfDoc.buffer, pdfDoc.fileName, pdfDoc.mimeType, '📝 Cover Letter');
-        } else {
-          const generatedDoc = await useResumeService.extractGeneratedDocument(
-            result.data,
-            'cover_letter.pdf',
-            'application/pdf'
-          );
-
-          if (generatedDoc?.buffer) {
-            await telegramView.sendDocument(
-              ctx,
-              generatedDoc.buffer,
-              generatedDoc.fileName || 'cover_letter.pdf',
-              generatedDoc.mimeType || 'application/pdf',
-              '📝 Cover Letter'
-            );
-          } else if (runId !== 'unknown') {
-            await telegramView.coverLetterComplete(ctx, runId);
-          } else {
-            throw new Error('No cover letter content or downloadable file returned by provider');
-          }
-        }
-      } catch (e2) {
-        console.log('[Controller] UseResume also failed:', e2.message);
-        await telegramView.actionError(ctx, 'Failed to generate cover letter');
-      }
+      console.log('[Controller] AI cover letter failed:', e.message);
+      await telegramView.actionError(ctx, 'Failed to generate cover letter');
     }
   }
-
   async handleGenerateBoth(ctx, cvBuffer, jobDescription, structure, analysis, session) {
     await telegramView.generatingBoth(ctx);
 
@@ -698,7 +638,7 @@ export class CVController {
     return found ? found.trim() : null;
   }
 
-  async tryAIThenUseResume(type, cvBuffer, jobDescription, structure, analysis, session) {
+  async tryAI(type, cvBuffer, jobDescription, structure, analysis, session) {
     try {
       if (type === 'resume') {
         return await aiService.rewriteCVWithOpenRouter(session.cv.text, jobDescription, structure, analysis);
@@ -706,24 +646,12 @@ export class CVController {
         return await aiService.generateCoverLetterWithOpenRouter(session.cv.text, jobDescription);
       }
     } catch (e) {
-      console.log(`[Controller] AI ${type} failed, trying UseResume`);
-      if (type === 'resume') {
-        const result = await useResumeService.createTailoredResume(cvBuffer, jobDescription, session.cv.fileName, {
-          parsedData: session.cv.parsedData,
-          resumeText: session.cv.text,
-        });
-        return result.data;
-      } else {
-        const result = await useResumeService.createTailoredCoverLetter(cvBuffer, jobDescription, session.cv.fileName, {
-          parsedData: session.cv.parsedData,
-          resumeText: session.cv.text,
-        });
-        return result.data;
-      }
+      console.log(`[Controller] AI ${type} failed`);
+      throw e;
     }
   }
 
-  shouldPreferUseResumeForFormat(mimeType, fileName) {
+  shouldPreferLocalGenerationForFormat(mimeType, fileName) {
     return documentGeneratorService.detectFormat(mimeType, fileName) === 'pdf';
   }
 

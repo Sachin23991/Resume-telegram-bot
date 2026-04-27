@@ -7,8 +7,6 @@ services:
     startCommand: npm start
     healthCheckPath: /
     envVars:
-      - key: NODE_VERSION
-        value: 20
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: MONGODB_URL
@@ -23,8 +21,6 @@ services:
         sync: false
       - key: OPENROUTER_KEY_FALLBACK
         sync: false
-      - key: OPENROUTER_MODEL
-        value: google/gemini-2.5-flash
       - key: GEMINI_API_KEY
         sync: false
       - key: APILAYER_KEY_1
@@ -34,12 +30,6 @@ services:
       - key: APILAYER_KEY_3
         sync: false
       - key: APILAYER_KEY_4
-        sync: false
-      - key: USERESUME_KEY_1
-        sync: false
-      - key: USERESUME_KEY_2
-        sync: false
-      - key: USERESUME_KEY_3
         sync: false
       - key: CVPARSER_KEY_1
         sync: false

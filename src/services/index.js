@@ -1,6 +1,5 @@
 export { AIService, aiService } from './AIService.js';
 export { CVExtractorService, cvExtractorService } from './CVExtractorService.js';
-export { UseResumeService, useResumeService } from './UseResumeService.js';
 export { CVParserService, cvParserService } from './CVParserService.js';
 export { WorkflowStoreService, workflowStoreService } from './WorkflowStoreService.js';
 export { APIKeyRotationService, apiKeyRotationService } from './APIKeyRotationService.js';
